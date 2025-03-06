@@ -1,0 +1,30 @@
+:root {
+    --color-primary: #fff;
+
+    --content-max-width: 800px;
+
+    --primary-color: #4d6bfe;
+    --danger-color: #ff4d4f;
+    --primary-bg-color: rgb(219, 234, 254);
+    
+    
+    --button-hover: #c6dcf8;
+    --button-hover-2: #e0e4ed;
+    
+    --label-color: rgb(139, 139, 139);
+    --label-bg-color: rgb(243, 244, 246);
+
+    --text-color: rgb(38, 38, 38);
+    --text-desc-color: rgb(163, 163, 163);
+    
+    --sidebar-width: 260px;
+    --sidebar-min-width: 68px;
+    --sidebar-bg: #f9fbff;
+    --sidebar-hover: #eff6ff;
+
+    --chat-my-bg: #eff6ff;
+    --chat-robot-bg: rgb(245,245,245);
+    --chat-robot-hover: rgb(237,237,237);
+    --chat-think-text: #8b8b8b;
+    --chat-think-border: #e5e5e5;
+}
