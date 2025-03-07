@@ -16,7 +16,6 @@ import Tools from '@/weights/Chat/Tools/index.vue'
 import {
   ArrowUpOutlined,
   DownOutlined,
-  GlobalOutlined,
   LoadingOutlined,
   PauseOutlined,
   RightOutlined,
@@ -65,7 +64,7 @@ const chatMessageList = ref<Array<any>>([
 ])
 const chatContainer = ref(null)
 const controller = ref<any>(null)
-const maxLen = 26000 // 模型最大字符数(关联)
+// const maxLen = 26000 // 模型最大字符数(关联)
 const loading = ref<boolean>(false)
 const spinning = ref<boolean>(false)
 const chatTitle = ref<string>('')
@@ -138,8 +137,7 @@ function parseJsonLikeData(content: any) {
 
 function parseMergeObj(lastChatItem: any, data: any) {
   const newData = Object.assign({}, lastChatItem)
-
-  newData.data.forEach((item, index) => {
+  newData.choices.forEach((item, index) => {
     const nextData = data.choices[index]?.delta?.content || ''
     item.delta.content = nextData ? (item.delta.content || '') + nextData : (item.delta.content || '')
   })
@@ -389,7 +387,6 @@ function scrollToBottom() {
 
 function handlePause() {
   if (controller.value.signal.aborted) {
-    console.log('请求已经中止，不需要再次中止')
     return
   }
   controller.value.abort() // 中止请求
@@ -413,7 +410,6 @@ async function getChatDetail() {
     chatMessageList.value = data.list.map(item => JSON.parse(item.content))
     chatMessageList.value = handlePackToolsToList(chatMessageList.value)
     chatTitle.value = data.title
-    console.log(chatMessageList.value)
 
     if (isSendChat) {
       const lastData = chatMessageList.value.splice(chatMessageList.value.length - 1, 1)
@@ -647,7 +643,7 @@ watch(chatTitle, () => {
                   </div>
                 </div>
               </ATooltip>
-              <ATooltip placement="right">
+              <!-- <ATooltip placement="right">
                 <template v-if="!isRepository" #title>
                   <span class="text-12">关联知识库搜索</span>
                 </template>
@@ -661,7 +657,7 @@ watch(chatTitle, () => {
                     知识库搜索
                   </div>
                 </div>
-              </ATooltip>
+              </ATooltip> -->
             </div>
 
             <div>

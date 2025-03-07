@@ -4,7 +4,7 @@ import { AI_IDENTITY_USER_VALUE } from '@/constant/enum'
 import createNewChatService from '@/service/chat/createNewChatService'
 import saveChatRecordService from '@/service/chat/saveChatRecordService'
 import { useUserStore } from '@/stores/user'
-import { ArrowUpOutlined, GlobalOutlined, LoadingOutlined } from '@ant-design/icons-vue'
+import { ArrowUpOutlined, LoadingOutlined } from '@ant-design/icons-vue'
 import { Textarea as ATextarea, Tooltip as ATooltip } from 'ant-design-vue'
 
 defineOptions({
@@ -129,7 +129,7 @@ function sendChat(event: any) {
               </div>
             </div>
           </ATooltip>
-          <ATooltip placement="right">
+          <!-- <ATooltip placement="right">
             <template v-if="!isRepository" #title>
               <span class="text-12">关联知识库搜索</span>
             </template>
@@ -143,7 +143,7 @@ function sendChat(event: any) {
                 知识库搜索
               </div>
             </div>
-          </ATooltip>
+          </ATooltip> -->
         </div>
 
         <div>
