@@ -5,8 +5,8 @@ import { AI_BASE_URL, BASE_URL } from '@/config'
  */
 
 export const SEND_USER_MESSAGE_SERVICE = {
-  // url: `${AI_BASE_URL}/v1/chat/completions`,
-  url: `${AI_BASE_URL}/chat_and_rag`,
+  url: `${AI_BASE_URL}/v1/chat/completions`,
+  // url: `${AI_BASE_URL}/chat_and_rag`,
   method: 'post',
   headers: { 'content-type': 'application/json' },
   timeout: 30000,
