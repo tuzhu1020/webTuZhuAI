@@ -1,4 +1,4 @@
-import { BASE_URL, IS_PROD } from '@/config'
+import { BASE_URL } from '@/config'
 
 import getChatListService from '@/service/chat/getChatListService'
 
@@ -45,16 +45,16 @@ export const useUserStore = defineStore('user', () => {
 
   async function getUserInfo(code: string) {
     try {
-      // const { token, userId, username, isAdmin } = await getUserInfoService({ code }) || {} as any
-      // setToken(token)
-      // setUserInfo({ userId, username, isAdmin })
-      // getChatList()
-      const {
-        token = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1XzEyMyIsInVzZXJJZCI6InVfMTIzIiwiaWF0IjoxNzQwNTUzNTM2LCJ1c2VybmFtZSI6Inh4In0.8o4F71q1qh9F4T9kS3NacYLE-J_1PpW-rLYI-SgVq7Uesaa4QOnhOqgJeb-Rn-O8PnkG9EDlun6iBe6-86JOYQ',
-        userId = 'u_123',
-        username = 'xx',
-        isAdmin = 1,
-      } = {}
+      const { token, userId, username, isAdmin } = await getUserInfoService({ code }) || {} as any
+      setToken(token)
+      setUserInfo({ userId, username, isAdmin })
+      getChatList()
+      // const {
+      //   token = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJ1XzEyMyIsInVzZXJJZCI6InVfMTIzIiwiaWF0IjoxNzQwNTUzNTM2LCJ1c2VybmFtZSI6Inh4In0.8o4F71q1qh9F4T9kS3NacYLE-J_1PpW-rLYI-SgVq7Uesaa4QOnhOqgJeb-Rn-O8PnkG9EDlun6iBe6-86JOYQ',
+      //   userId = 'u_123',
+      //   username = 'xx',
+      //   isAdmin = 1,
+      // } = {}
       setToken(token)
       setUserInfo({ userId, username, isAdmin })
       getChatList()

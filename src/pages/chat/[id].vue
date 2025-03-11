@@ -175,9 +175,9 @@ async function sendChat() {
         method: SEND_USER_MESSAGE_SERVICE.method,
         headers: SEND_USER_MESSAGE_SERVICE.headers,
         body: JSON.stringify({
-          docs,
+          // docs,
           // model: 'deepseek-r1:32b',
-          model: IS_PROD ? 'Qwen2' : 'deepseek-r1:1.5b',
+          model: IS_PROD ? 'DeepSeek-R1' : 'deepseek-r1:1.5b',
           // model: 'Qwen2',
           // messages: [
           //   {
@@ -189,7 +189,7 @@ async function sendChat() {
           //     content: content.value,
           //   },
           // ],
-          rag: isRepository.value,
+          // rag: isRepository.value,
           messages: chatMessageList.value.map((item) => {
             const isUser = item.role === 'user'
             return {
@@ -270,10 +270,18 @@ async function sendChat() {
                 if (newData.choices?.[0]) {
                   newData.choices = newData.choices.map((item) => {
                     const str = item.delta.content || ''
+                    // const thinkStart = str.indexOf('<think>')
+                    // const thinkEnd = str.indexOf('</think>')
+                    // const strList = (thinkStart >= 0 ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length) : '').split('\n')
                     const thinkStart = str.indexOf('<think>')
                     const thinkEnd = str.indexOf('</think>')
-                    const strList = (thinkStart >= 0 ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length) : '').split('\n')
-
+                    const strList = (
+                      thinkStart >= 0
+                        ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length)
+                        : thinkEnd >= 0
+                          ? str.substring(0, thinkEnd)
+                          : ''
+                    ).split('\n')
                     if (thinkEnd >= 0) {
                       chatMessageList.value[chatMessageList.value.length - 1].thinkTime = (new Date().getTime() - startTime) / 1000
                     }
