@@ -177,7 +177,8 @@ async function sendChat() {
         body: JSON.stringify({
           // docs,
           // model: 'deepseek-r1:32b',
-          model: IS_PROD ? 'DeepSeek-R1' : 'deepseek-r1:1.5b',
+          model: IS_PROD ? 'DeepSeek-R1' : 'deepseek-r1:32b',
+          // model:  'deepseek-r1:32b',
           // model: 'Qwen2',
           // messages: [
           //   {
@@ -201,11 +202,16 @@ async function sendChat() {
         }),
       })
 
-      pauseing.value = false
+      pauseing.value = falselog
+      // console.log(resp,'resp');
 
       // const reader = resp.body?.pipeThrough(new TextDecoderStream()).pipeThrough(TransformUtils.splitStream('\n')).getReader()
       const reader = resp?.body?.getReader()
+      // console.log(reader,'reader');
+
       const nosupportReader = resp?.body?.getReader
+      // console.log(nosupportReader,'nosupportReader');
+
       // const text1 = await resp.blob()
       // const reader = await resp.text()
       // console.log(resp, 'resp')
@@ -241,7 +247,63 @@ async function sendChat() {
 
           // const decodeData = textDecoder?.decode(value, { stream: true })
           buffer += textDecoder?.decode(value, { stream: true })
+          // console.log(buffer,'buffer111111');
+
           // decodeDataSplitList = decodeData.split('\n').filter(item => item)
+        }
+        else if (!window.ReadableStream || !resp.body?.getReader) {
+          buffer += await resp.text()
+          const lines = buffer.split('\n')
+          // console.log(lines,'lines');
+
+          buffer = lines.pop() || ''
+          for (const line of lines) {
+            if (line.trim()) {
+              const data = parseJsonLikeData(line)
+              // console.log(data, 'data')
+              if (data && !data.done) {
+                const lastChatItem = chatMessageList.value[chatMessageList.value.length - 1]
+                if (lastChatItem.id) {
+                  const newData = parseMergeObj(lastChatItem, data)
+                  // console.log(newData, 'newData')
+                  if (newData.choices?.[0]) {
+                    newData.choices = newData.choices.map((item) => {
+                      const str = item.delta.content || ''
+                      // const thinkStart = str.indexOf('<think>')
+                      // const thinkEnd = str.indexOf('</think>')
+                      // const strList = (thinkStart >= 0 ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length) : '').split('\n')
+                      const thinkStart = str.indexOf('<think>')
+                      const thinkEnd = str.indexOf('</think>')
+                      // console.log(thinkStart, thinkEnd, 'thinkStart, thinkEnd',str)
+                      const strList = (
+                        thinkStart >= 0
+                          ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length)
+                          : thinkEnd >= 0
+                            ? str.substring(0, thinkEnd)
+                            : ''
+                      ).split('\n')
+                      if (thinkEnd >= 0) {
+                        chatMessageList.value[chatMessageList.value.length - 1].thinkTime = (new Date().getTime() - startTime) / 1000
+                      }
+                      // console.log(strList, 'strList',str.substring(thinkEnd + 8, str.length))
+                      return {
+                        ...item,
+                        _thinkContent: strList.filter(Boolean),
+                        _content: thinkEnd >= 0 ? str.substring(thinkEnd + 8, str.length) : '',
+                      }
+                    })
+                  }
+                  await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 30)))
+                  chatMessageList.value[chatMessageList.value.length - 1] = generatorAiChatList(newData)
+                }
+                else {
+                  chatMessageList.value[chatMessageList.value.length - 1] = generatorAiChatList({ ...data, docs })
+                }
+                scrollToBottom()
+              }
+            }
+          }
+          done = true
         }
         else {
           buffer += await resp.text()
@@ -258,15 +320,19 @@ async function sendChat() {
         // buffer += textDecoder.decode(value, { stream: true })
 
         const lines = buffer.split('\n')
+        // console.log(lines,'lines');
+
         buffer = lines.pop() || ''
 
         for (const line of lines) {
           if (line.trim()) {
             const data = parseJsonLikeData(line)
+            // console.log(data, 'data')
             if (data && !data.done) {
               const lastChatItem = chatMessageList.value[chatMessageList.value.length - 1]
               if (lastChatItem.id) {
                 const newData = parseMergeObj(lastChatItem, data)
+                // console.log(newData, 'newData')
                 if (newData.choices?.[0]) {
                   newData.choices = newData.choices.map((item) => {
                     const str = item.delta.content || ''
@@ -275,6 +341,7 @@ async function sendChat() {
                     // const strList = (thinkStart >= 0 ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length) : '').split('\n')
                     const thinkStart = str.indexOf('<think>')
                     const thinkEnd = str.indexOf('</think>')
+                    // console.log(thinkStart, thinkEnd, 'thinkStart, thinkEnd',str)
                     const strList = (
                       thinkStart >= 0
                         ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length)
@@ -285,7 +352,7 @@ async function sendChat() {
                     if (thinkEnd >= 0) {
                       chatMessageList.value[chatMessageList.value.length - 1].thinkTime = (new Date().getTime() - startTime) / 1000
                     }
-
+                    // console.log(strList, 'strList',str.substring(thinkEnd + 8, str.length))
                     return {
                       ...item,
                       _thinkContent: strList.filter(Boolean),
@@ -412,11 +479,13 @@ async function getChatDetail() {
       list: Array<any>
       title: string
     } = await getChatDetailService({ conversationId: chatId.value }) as any
-
+    // console.log(data, 'data')
     const isSendChat = data.list[data.list.length - 1]?.role === AI_IDENTITY_USER_VALUE
 
     chatMessageList.value = data.list.map(item => JSON.parse(item.content))
+    // console.log(chatMessageList.value, 'chatMessageList.value111111')
     chatMessageList.value = handlePackToolsToList(chatMessageList.value)
+    // console.log(chatMessageList.value, 'chatMessageList.value222222')
     chatTitle.value = data.title
 
     if (isSendChat) {
@@ -600,7 +669,7 @@ watch(chatTitle, () => {
                     </div>
                   </template>
                   <LoadingOutlined v-if="item.loading" class="m-b-24 m-t-6 cursor-not-allowed text-26 text-#909090" />
-                  <div class="mr-12 opacity-0 transition-all duration-800 group-hover:block group-hover:opacity-100">
+                  <div v-if="!item.loading" class="mr-12 opacity-0 transition-all duration-800 group-hover:block group-hover:opacity-100">
                     <Tools v-model="item.tools" @click="handleToolsCopy(item?.choices[0]?._content)" />
                   </div>
                 </div>
