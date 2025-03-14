@@ -202,7 +202,7 @@ async function sendChat() {
         }),
       })
 
-      pauseing.value = falselog
+      pauseing.value = false
       // console.log(resp,'resp');
 
       // const reader = resp.body?.pipeThrough(new TextDecoderStream()).pipeThrough(TransformUtils.splitStream('\n')).getReader()
