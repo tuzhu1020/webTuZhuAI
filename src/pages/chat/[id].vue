@@ -194,7 +194,7 @@ async function sendChat() {
           messages: chatMessageList.value.map((item) => {
             const isUser = item.role === 'user'
             return {
-              role: isUser ? item.role : 'system',
+              role: isUser ? item.role : 'assistant',
               content: isUser ? item.content : item.choices?.[0]?.delta.content,
             }
           }).filter(item => item.content),
