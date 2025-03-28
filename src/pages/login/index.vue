@@ -196,7 +196,7 @@ const toggleMode = () => {
   </div>
 </template>
 <style scoped>
-.css-dev-only-do-not-override-1p3hq3p.ant-form-item{
+.css-dev-only-do-not-override-1p3hq3p.ant-form-item {
   margin-bottom: 0;
 }
 </style>

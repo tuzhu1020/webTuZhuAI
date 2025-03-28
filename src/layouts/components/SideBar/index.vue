@@ -190,7 +190,7 @@ onMounted(() => {
     <div v-if="isCollapse" class="h-screen w-[var(--sidebar-width)] flex flex-col bg-[var(--sidebar-bg)]">
       <!-- header -->
       <div class="flex items-center justify-between p-b-34 p-l-20 p-r-10 p-t-25">
-        <img class="h-26" src="@/assets/images/logo_text.svg">
+        <img class="h-26" src="@/assets/images/logo_text.svg" @click="router.push('/')">
         <ATooltip title="收起边栏" placement="bottom">
           <div
             class="cursor-pointer rounded-4 p-2 transition-all duration-300 hover:bg-[rgb(241,245,249)]"
@@ -204,7 +204,7 @@ onMounted(() => {
       <div class="mb-34">
         <div
           class="ml-14 h-44 flex-inline cursor-pointer items-center rounded-14 bg-[var(--primary-bg-color)] p-x-10 transition-all duration-600 hover:bg-[var(--button-hover)]"
-          @click="router.push('/')"
+          @click="router.push('/chat')"
         >
           <img class="m-r-10 h-22 w-22" src="@/assets/images/add_new_icon.svg">
           <div class="color-[var(--primary-color)]">
@@ -339,7 +339,7 @@ onMounted(() => {
     <!-- 收起 -->
     <div v-show="!isCollapse" class="h-screen w-[var(--sidebar-min-width)] flex flex-col bg-[var(--sidebar-bg)] p-y20 text-center">
       <div>
-        <img src="@/assets/images/logo.svg" class="h-44 w-44 cursor-pointer" @click="handleLogo">
+        <img src="@/assets/images/logo.svg" class="h-44 w-44 cursor-pointer" @click="router.push('/')">
       </div>
       <div class="flex-1">
         <div class="mt-38">
@@ -356,7 +356,7 @@ onMounted(() => {
           <ATooltip title="开启新对话" placement="right">
             <div
               class="inline cursor-pointer rounded-4 p-4 transition-all duration-300 hover:bg-[rgb(241,245,249)]"
-              @click="router.push('/')"
+              @click="router.push('/chat')"
             >
               <img class="h-24 w-24" src="@/assets/images/add_new_gray_icon.svg">
             </div>

@@ -205,3 +205,50 @@ export const AI_IDENTITY_AI_VALUE = 'ai'
 export const AI_IDENTITY_AI_LABEL = 'AI'
 
 
+/**
+ * @desc 合作伙伴图片
+ * @type { String }
+ */
+export const PARTNER_IMAGE_URLS = {
+    slider1: [
+        "https://img.alicdn.com/imgextra/i4/O1CN01LaR7F41nGRtM4LrWR_!!6000000005062-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01aUG4Lp1pIOoFDR3HM_!!6000000005337-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i4/O1CN018xHqp11HAQm1dR3W4_!!6000000000717-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01cxNKfp25LdFUsauQ9_!!6000000007510-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01TZT2j51Q3rjEfObPe_!!6000000001921-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01vpH2x31ggpOSdX9RK_!!6000000004172-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i4/O1CN01oGgyot1NqT1t8yqDN_!!6000000001621-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01clJQzX1jloYKcg2l3_!!6000000004589-2-tps-400-200.png",
+    ],
+    slider2: [
+        "https://img.alicdn.com/imgextra/i1/O1CN016HbzMz23RvfiqKMVY_!!6000000007253-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01ybcx2k29yLBZzrO52_!!6000000008136-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01Mrw1oc1DzwrZdK9Qm_!!6000000000288-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01HXgMfO1pCRRwMSjq9_!!6000000005324-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i1/O1CN01rkxbRH1IhEl9Y6wHX_!!6000000000924-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i4/O1CN01ygzLuQ1koqaGBSDQG_!!6000000004731-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01lJUQwk1MfBeuwPcVS_!!6000000001461-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN018hPmYp1exCJoRcGHT_!!6000000003937-2-tps-400-200.png",
+    ],
+    slider3: [
+        "https://img.alicdn.com/imgextra/i4/O1CN01S5Owuw1l9unfvBPVI_!!6000000004777-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i1/O1CN01PrlyXM1enZn0Ybxxu_!!6000000003916-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i1/O1CN01dqg8rM28Bxjhm2l5s_!!6000000007895-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i1/O1CN01aouCwu1JiRPoJouGL_!!6000000001062-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01FcvdSW1X9XrL5CA4d_!!6000000002881-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01jxRviY1TT0Du59mtJ_!!6000000002382-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN014d1bSm1mYTejvpykS_!!6000000004966-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01clVEV11KudZybXe1k_!!6000000001224-2-tps-400-200.png",
+    ],
+    slider4: [
+        "https://img.alicdn.com/imgextra/i4/O1CN01uPXqL31jTUV3Ohik8_!!6000000004549-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01bMC8W01hiUEijrBqL_!!6000000004311-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01qw0L3g25S2nOrdAEA_!!6000000007524-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01lTgpyA29q63X4OdNt_!!6000000008118-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i2/O1CN01LZfUT322j2eA99Dbl_!!6000000007155-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01xs1Fl127DxqjBkcbq_!!6000000007764-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN01lpksZa1HsP0XxKfk4_!!6000000000813-2-tps-400-200.png",
+        "https://img.alicdn.com/imgextra/i3/O1CN018hPmYp1exCJoRcGHT_!!6000000003937-2-tps-400-200.png",
+    ],
+};
+

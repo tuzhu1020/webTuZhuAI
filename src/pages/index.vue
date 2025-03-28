@@ -1,155 +1,99 @@
 <script setup lang="ts">
-import { $message } from "@/composables/antMessage";
-import { AI_IDENTITY_USER_VALUE } from "@/constant/enum";
-import createNewChatService from "@/service/chat/createNewChatService";
-import saveChatRecordService from "@/service/chat/saveChatRecordService";
 import { useUserStore } from "@/stores/user";
-import { ArrowUpOutlined, LoadingOutlined } from "@ant-design/icons-vue";
-import { Textarea as ATextarea, Tooltip as ATooltip } from "ant-design-vue";
-
-defineOptions({
-  name: "Index",
-});
-
-const isThink = ref<boolean>(false);
-const isRepository = ref<boolean>(false);
-const content = ref<string>("");
-const loading = ref<boolean>(false);
-const router = useRouter();
+import ImageSlider from "@/components/ImageSlider/index.vue";
+import { PARTNER_IMAGE_URLS } from "@/constant/enum";
 const userStore = useUserStore();
-const { getChatList } = userStore;
 
-function generatorMyChatList(content: string) {
-  return {
-    content,
-    role: "user",
-    id: +new Date().getTime(),
-    type: "my",
-  };
-}
 
-function sendChatFn() {
-  loading.value = true;
-  setTimeout(async () => {
-    // router.push({
-    //   path: `/chat/${+new Date().getTime()}`,
-    //   query: {
-    //     isRepository: isRepository.value ? 'true' : '',
-    //     isThink: isThink.value ? 'true' : '',
-    //     content: content.value,
-    //   },
-    // })
-    try {
-      const { title, id } = await createNewChatService({ title: "新会话" });
-      await saveChatRecordService({
-        title,
-        conversationId: id,
-        content: JSON.stringify(generatorMyChatList(content.value)),
-        role: AI_IDENTITY_USER_VALUE,
-      });
-      getChatList();
-      router.push({
-        path: `/chat/${id}`,
-        query: {
-          isRepository: isRepository.value ? "true" : "",
-          isThink: isThink.value ? "true" : "",
-        },
-      });
-    } catch (message: any) {
-      $message.error(message);
-    } finally {
-      loading.value = false;
-    }
-  }, 1200);
-}
-
-function sendChat(event: any) {
-  if (event.keyCode === 13) {
-    if (!event.shiftKey) {
-      event.preventDefault();
-
-      if (content.value) sendChatFn();
-    } else {
-      const selectionStart = event.target.selectionStart;
-      content.value = `${content.value.substring(
-        0,
-        selectionStart
-      )}\n${content.value.substring(selectionStart)}`;
-      nextTick(() => {
-        event.target.setSelectionRange(selectionStart + 1, selectionStart + 1);
-      });
-    }
-  } else {
-    if (content.value) sendChatFn();
-  }
-}
 </script>
 
 <template>
-  <div class="m-auto max-w-800 p-x64">
-    <div class="mt-46% flex items-center justify-center text-center text-24">
-      <img class="mr-18 h-60 w-60" src="@/assets/images/logo.svg">
-      <div>我是DeepSeek(内网版)，很高兴见到你！</div>
+  <div class=" overflow-y-auto">
+    <!-- 主横幅 -->
+    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 py-20 ">
+      <div class="container mx-auto px-4 text-center">
+        <h1 class="mb-6 text-5xl font-bold text-white">
+          智能 AI 助手
+        </h1>
+        <p class="mb-8 text-xl text-white/80">
+          让 AI 为您的工作和学习提供智能支持
+        </p>
+        <div class="space-x-4">
+          <RouterLink to="/chat" class="inline-block rounded-lg bg-white px-8 py-3 text-lg font-semibold text-blue-600 transition-colors hover:bg-blue-50">
+            立即体验
+          </RouterLink>
+          <a href="#features" class="inline-block rounded-lg border-2 border-white px-8 py-3 text-lg font-semibold text-white transition-colors hover:bg-white/10">
+            了解更多
+          </a>
+        </div>
+      </div>
     </div>
-    <div class="mb-32 mt-8 text-center text-14">
-      我可以帮你写代码、读文件、写作各种创意内容，请把你的任务交给我吧~
-    </div>
-    <!-- 内容 -->
-    <!-- 0px 0px 0px .5px var(--dsr-input-border) -->
-    <div class="flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
-      <ATextarea v-model:value="content" placeholder="给 DeepSeek 发送消息" autofocus :autosize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="sendChat" />
-      <div class="mt-10 w-full flex items-center justify-between">
-        <div class="flex items-center justify-start">
-          <ATooltip placement="left">
-            <template v-if="!isThink" #title>
-              <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
-            </template>
-            <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']" class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]" @click="isThink = !isThink">
-              <img v-if="!isThink" src="@/assets/images/think_icon.svg" class="m-r-4 h-18 w-18 cursor-pointer">
-              <img v-else src="@/assets/images/think_active_icon.svg" class="m-r-4 h-18 w-18 cursor-pointer">
-              <div class="pt-2 vertical-middle text-12">
-                深度思考(R1)
-              </div>
-            </div>
-          </ATooltip>
-          <!-- <ATooltip placement="right">
-            <template v-if="!isRepository" #title>
-              <span class="text-12">关联知识库搜索</span>
-            </template>
-            <div
-              :class="[isRepository ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
-              class="ml-12 h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
-              @click="isRepository = !isRepository"
-            >
-              <GlobalOutlined class="m-r-4 cursor-pointer vertical-middle text-18" />
-              <div class="pt-2 vertical-middle text-12">
-                知识库搜索
-              </div>
-            </div>
-          </ATooltip> -->
+
+    <!-- 功能特点 -->
+    <div id="features" class="container mx-auto px-4 py-20">
+      <h2 class="mb-12 text-center text-3xl font-bold text-gray-800">
+        核心功能
+      </h2>
+      <div class="grid grid-cols-1 gap-8 md:grid-cols-3">
+        <!-- 特点 1 -->
+        <div class="rounded-xl bg-white p-8 shadow-lg transition-transform hover:-translate-y-1">
+          <div class="mb-4 text-3xl text-blue-600">💡</div>
+          <h3 class="mb-3 text-xl font-bold text-gray-800">
+            智能对话
+          </h3>
+          <p class="text-gray-600">
+            采用先进的自然语言处理技术，精准理解您的需求，提供智能对话服务。
+          </p>
         </div>
 
-        <div>
-          <div>
-            <ATooltip placement="top">
-              <template v-if="!content" #title>
-                <span>请输入你的问题</span>
-              </template>
-              <div :class="[content ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']" class="h-32 w-32 flex items-center justify-center rounded-50%" @click="sendChat">
-                <ArrowUpOutlined v-if="!loading" class="text-#fafafa" />
-                <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa" />
-              </div>
-            </ATooltip>
-          </div>
+        <!-- 特点 2 -->
+        <div class="rounded-xl bg-white p-8 shadow-lg transition-transform hover:-translate-y-1">
+          <div class="mb-4 text-3xl text-blue-600">🚀</div>
+          <h3 class="mb-3 text-xl font-bold text-gray-800">
+            高效协作
+          </h3>
+          <p class="text-gray-600">
+            快速响应，提供专业的解决方案，帮助您提高工作效率。
+          </p>
         </div>
+
+        <!-- 特点 3 -->
+        <div class="rounded-xl bg-white p-8 shadow-lg transition-transform hover:-translate-y-1">
+          <div class="mb-4 text-3xl text-blue-600">🔒</div>
+          <h3 class="mb-3 text-xl font-bold text-gray-800">
+            安全可靠
+          </h3>
+          <p class="text-gray-600">
+            采用先进的加密技术，确保您的数据安全，保护隐私。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 合作伙伴展示 -->
+    <div class="py-16 bg-gray-50">
+      <div class=" mx-auto px-4">
+        <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">合作伙伴</h2>
+        <div class="space-y-8 bg-gray-100 ">
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider1" direction="left" />
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider2" direction="right" />
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider3" direction="left" />
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider4" direction="right" />
+        </div>
+      </div>
+    </div>
+    <!-- 用户信息 -->
+    <div v-if="userStore.userInfo" class="container mx-auto mb-16 px-4 text-center">
+      <div class="inline-block rounded-lg bg-blue-50 px-6 py-3">
+        <span class="text-gray-600">欢迎回来，</span>
+        <span class="font-semibold text-blue-600">{{ userStore.userInfo.username }}</span>
       </div>
     </div>
   </div>
 </template>
 
-<style lang='scss' scoped></style>
 <route lang="yaml">
 meta:
-  layout: default
-  requiresAuth: true
+  layout: landing
+  requiresAuth: false
 </route>
