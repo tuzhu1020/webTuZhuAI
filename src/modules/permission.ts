@@ -1,27 +1,36 @@
-import type { UserModule } from '@/types'
+import type { UserModule } from "@/types";
 
-import { useUserStore } from '@/stores/user'
-import { createPinia } from 'pinia'
-import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
+import { useUserStore } from "@/stores/user";
+import { createPinia } from "pinia";
+import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
+import NProgress from "nprogress";
 
 export const install: UserModule = ({ isClient, router, app }) => {
-  if (isClient) {
-    const pinia = createPinia()
-    pinia.use(piniaPluginPersistedstate)
-    app.use(pinia)
-    const userStore = useUserStore()
-    router.beforeEach(async (to) => {
-      const token = userStore.token
-      if (!token) {
-        !to.query.code ? await userStore.redirectHMD() : await userStore.getUserInfo(to.query.code as string)
-      }
-      // else {
-      // }
-      // if (to.path === '/' && to.query.code) {
-      //   await userStore.getUserInfo(to.query.code as string)
-      // } else {
+    if (isClient) {
+        const pinia = createPinia();
+        pinia.use(piniaPluginPersistedstate);
+        app.use(pinia);
+        router.beforeEach(async (to, from) => {
+            const userStore = useUserStore();
+            NProgress.start();
+            const token = userStore.token;
+            const requiresAuth = to.meta.requiresAuth !== false;
 
-      // }
-    })
-  }
-}
+            if (!token && requiresAuth) {
+                return {
+                    path: "/login",
+                    query: { redirect: to.fullPath },
+                };
+            }
+            if (token && to.path === "/login") {
+                return { path: "/" };
+            }
+
+            return true;
+        });
+
+        router.afterEach(() => {
+            NProgress.done();
+        });
+    }
+};

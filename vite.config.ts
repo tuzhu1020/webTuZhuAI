@@ -19,172 +19,165 @@ import generateSitemap from 'vite-ssg-sitemap'
 import 'vitest/config'
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      '~/': `${path.resolve(__dirname, 'src')}/`,
-      '@': path.join(__dirname, './src'),
-    },
-  },
-
-  plugins: [
-    VueMacros({
-      plugins: {
-        vue: Vue({
-          include: [/\.vue$/, /\.md$/],
-        }),
-      },
-    }),
-
-    VueRouter({
-      extensions: ['.vue', '.md'],
-      dts: 'src/typed-router.d.ts',
-    }),
-
-    Layouts(),
-
-    AutoImport({
-      imports: [
-        'vue',
-        'vue-i18n',
-        '@vueuse/head',
-        '@vueuse/core',
-        VueRouterAutoImports,
-        {
-          'vue-router/auto': ['useLink'],
+    resolve: {
+        alias: {
+            "~/": `${path.resolve(__dirname, "src")}/`,
+            "@": path.join(__dirname, "./src"),
         },
-      ],
-      dts: 'src/auto-imports.d.ts',
-      dirs: [
-        'src/composables',
-        'src/stores',
-      ],
-      vueTemplate: true,
-    }),
-
-    Components({
-      extensions: ['vue', 'md'],
-      include: [/\.vue$/, /\.vue\?vue/, /\.md$/],
-      dts: 'src/components.d.ts',
-    }),
-
-    Unocss(),
-
-    // Markdown({
-    //   wrapperClasses: 'prose prose-sm m-auto text-left',
-    //   headEnabled: true,
-    //   async markdownItSetup(md) {
-    //     md.use(LinkAttributes, {
-    //       matcher: (link: string) => /^https?:\/\//.test(link),
-    //       attrs: {
-    //         target: '_blank',
-    //         rel: 'noopener',
-    //       },
-    //     })
-    //     md.use(await Shiki({
-    //       defaultColor: false,
-    //       themes: {
-    //         light: 'vitesse-light',
-    //         dark: 'vitesse-dark',
-    //       },
-    //     }))
-    //   },
-    // }),
-
-    // VitePWA({
-    //   registerType: 'autoUpdate',
-    //   includeAssets: ['favicon.svg', 'safari-pinned-tab.svg'],
-    //   manifest: {
-    //     name: 'Vitesse',
-    //     short_name: 'Vitesse',
-    //     theme_color: '#ffffff',
-    //     icons: [],
-    //   },
-    // }),
-
-    VueI18n({
-      runtimeOnly: true,
-      compositionOnly: true,
-      fullInstall: true,
-      include: [path.resolve(__dirname, 'locales/**')],
-    }),
-
-    VueDevTools(),
-    legacy({
-      targets: ['firefox < 59', 'chrome < 60'],
-      additionalLegacyPolyfills: ['regenerator-runtime/runtime', '@webcomponents/webcomponentsjs'],
-      renderLegacyChunks: true,
-      polyfills: [
-        'es.symbol',
-        'es.promise',
-        'es.promise.finally',
-        'es/map',
-        'es/set',
-        'es.array.filter',
-        'es.array.for-each',
-        'es.array.flat-map',
-        'es.object.define-properties',
-        'es.object.define-property',
-        'es.object.get-own-property-descriptor',
-        'es.object.get-own-property-descriptors',
-        'es.object.keys',
-        'es.object.to-string',
-        'web.dom-collections.for-each',
-        'esnext.global-this',
-        'esnext.string.match-all',
-      ],
-      modernPolyfills: ['es.promise.all-settled', 'es.object.entries'],
-    }),
-  ],
-
-  test: {
-    include: ['test/**/*.test.ts'],
-    environment: 'jsdom',
-  },
-
-  ssgOptions: {
-    script: 'async',
-    formatting: 'minify',
-    beastiesOptions: {
-      reduceInlineStyles: false,
     },
-    onFinished() {
-      generateSitemap()
+
+    plugins: [
+        VueMacros({
+            plugins: {
+                vue: Vue({
+                    include: [/\.vue$/, /\.md$/],
+                }),
+            },
+        }),
+
+        VueRouter({
+            extensions: [".vue", ".md"],
+            dts: "src/typed-router.d.ts",
+        }),
+
+        Layouts(),
+
+        AutoImport({
+            imports: [
+                "vue",
+                "vue-i18n",
+                "@vueuse/head",
+                "@vueuse/core",
+                VueRouterAutoImports,
+                {
+                    "vue-router/auto": ["useLink"],
+                },
+            ],
+            dts: "src/auto-imports.d.ts",
+            dirs: ["src/composables", "src/stores"],
+            vueTemplate: true,
+        }),
+
+        Components({
+            extensions: ["vue", "md"],
+            include: [/\.vue$/, /\.vue\?vue/, /\.md$/],
+            dts: "src/components.d.ts",
+        }),
+
+        Unocss(),
+
+        // Markdown({
+        //   wrapperClasses: 'prose prose-sm m-auto text-left',
+        //   headEnabled: true,
+        //   async markdownItSetup(md) {
+        //     md.use(LinkAttributes, {
+        //       matcher: (link: string) => /^https?:\/\//.test(link),
+        //       attrs: {
+        //         target: '_blank',
+        //         rel: 'noopener',
+        //       },
+        //     })
+        //     md.use(await Shiki({
+        //       defaultColor: false,
+        //       themes: {
+        //         light: 'vitesse-light',
+        //         dark: 'vitesse-dark',
+        //       },
+        //     }))
+        //   },
+        // }),
+
+        // VitePWA({
+        //   registerType: 'autoUpdate',
+        //   includeAssets: ['favicon.svg', 'safari-pinned-tab.svg'],
+        //   manifest: {
+        //     name: 'Vitesse',
+        //     short_name: 'Vitesse',
+        //     theme_color: '#ffffff',
+        //     icons: [],
+        //   },
+        // }),
+
+        VueI18n({
+            runtimeOnly: true,
+            compositionOnly: true,
+            fullInstall: true,
+            include: [path.resolve(__dirname, "locales/**")],
+        }),
+
+        VueDevTools(),
+        legacy({
+            targets: ["firefox < 59", "chrome < 60"],
+            additionalLegacyPolyfills: [
+                "regenerator-runtime/runtime",
+                "@webcomponents/webcomponentsjs",
+            ],
+            renderLegacyChunks: true,
+            polyfills: [
+                "es.symbol",
+                "es.promise",
+                "es.promise.finally",
+                "es/map",
+                "es/set",
+                "es.array.filter",
+                "es.array.for-each",
+                "es.array.flat-map",
+                "es.object.define-properties",
+                "es.object.define-property",
+                "es.object.get-own-property-descriptor",
+                "es.object.get-own-property-descriptors",
+                "es.object.keys",
+                "es.object.to-string",
+                "web.dom-collections.for-each",
+                "esnext.global-this",
+                "esnext.string.match-all",
+            ],
+            modernPolyfills: ["es.promise.all-settled", "es.object.entries"],
+        }),
+    ],
+
+    test: {
+        include: ["test/**/*.test.ts"],
+        environment: "jsdom",
     },
-  },
 
-  ssr: {
-    noExternal: ['workbox-window', /vue-i18n/],
-  },
-
-  server: {
-    host: '0.0.0.0',
-    proxy: {
-      '/ai': {
-        // target: 'http://39.170.17.192:9105',
-        // target: 'http://39.175.132.230:35191',
-        // target: 'http://39.170.17.192:9109',
-        target: 'http://115.120.247.43:5003',
-        changeOrigin: true,
-        rewrite: path2 => path2.replace(/^\/ai/, ''),
-      },
-
-      '/backendApi': {
-        // target: 'http://39.170.17.192:9105',
-        // target: 'http://192.168.1.114:5999',
-        // target: 'http://192.168.1.114:5999',
-        // target: 'http://172.18.27.182:5999',
-        target: 'http://47.99.166.37:5999',
-        // target: 'http://192.168.1.100:5999',
-        changeOrigin: true,
-        rewrite: path2 => path2.replace(/^\/backendApi/, '/backendApi'),
-      },
+    ssgOptions: {
+        script: "async",
+        formatting: "minify",
+        beastiesOptions: {
+            reduceInlineStyles: false,
+        },
+        onFinished() {
+            generateSitemap();
+        },
     },
-  },
 
-  build: {
-    sourcemap: true,
-    rollupOptions: {
-      external: ['@webcomponents/webcomponentsjs'], // 确保在构建时处理 Web Components
+    ssr: {
+        noExternal: ["workbox-window", /vue-i18n/],
     },
-  },
-})
+
+    server: {
+        host: "0.0.0.0",
+        proxy: {
+            "/ai": {
+                target: "https://api.deepseek.com",
+                changeOrigin: true,
+                rewrite: (path2) => path2.replace(/^\/ai/, ""),
+            },
+
+            "/api": {
+                target: "http://localhost:7788",
+
+                changeOrigin: true,
+                rewrite: (path2) => path2.replace(/^\/api/, "/api"),
+            },
+        },
+    },
+
+    build: {
+        sourcemap: true,
+        rollupOptions: {
+            external: ["@webcomponents/webcomponentsjs"], // 确保在构建时处理 Web Components
+        },
+    },
+});

@@ -1,35 +1,35 @@
 <script setup lang="ts">
-import { $message } from '@/composables/antMessage'
-import { AI_IDENTITY_USER_VALUE } from '@/constant/enum'
-import createNewChatService from '@/service/chat/createNewChatService'
-import saveChatRecordService from '@/service/chat/saveChatRecordService'
-import { useUserStore } from '@/stores/user'
-import { ArrowUpOutlined, LoadingOutlined } from '@ant-design/icons-vue'
-import { Textarea as ATextarea, Tooltip as ATooltip } from 'ant-design-vue'
+import { $message } from "@/composables/antMessage";
+import { AI_IDENTITY_USER_VALUE } from "@/constant/enum";
+import createNewChatService from "@/service/chat/createNewChatService";
+import saveChatRecordService from "@/service/chat/saveChatRecordService";
+import { useUserStore } from "@/stores/user";
+import { ArrowUpOutlined, LoadingOutlined } from "@ant-design/icons-vue";
+import { Textarea as ATextarea, Tooltip as ATooltip } from "ant-design-vue";
 
 defineOptions({
-  name: 'Index',
-})
+  name: "Index",
+});
 
-const isThink = ref<boolean>(false)
-const isRepository = ref<boolean>(false)
-const content = ref<string>('')
-const loading = ref<boolean>(false)
-const router = useRouter()
-const userStore = useUserStore()
-const { getChatList } = userStore
+const isThink = ref<boolean>(false);
+const isRepository = ref<boolean>(false);
+const content = ref<string>("");
+const loading = ref<boolean>(false);
+const router = useRouter();
+const userStore = useUserStore();
+const { getChatList } = userStore;
 
 function generatorMyChatList(content: string) {
   return {
     content,
-    role: 'user',
+    role: "user",
     id: +new Date().getTime(),
-    type: 'my',
-  }
+    type: "my",
+  };
 }
 
 function sendChatFn() {
-  loading.value = true
+  loading.value = true;
   setTimeout(async () => {
     // router.push({
     //   path: `/chat/${+new Date().getTime()}`,
@@ -40,50 +40,47 @@ function sendChatFn() {
     //   },
     // })
     try {
-      const { title, id } = await createNewChatService({ title: '新会话' })
+      const { title, id } = await createNewChatService({ title: "新会话" });
       await saveChatRecordService({
         title,
         conversationId: id,
         content: JSON.stringify(generatorMyChatList(content.value)),
         role: AI_IDENTITY_USER_VALUE,
-      })
-      getChatList()
+      });
+      getChatList();
       router.push({
         path: `/chat/${id}`,
         query: {
-          isRepository: isRepository.value ? 'true' : '',
-          isThink: isThink.value ? 'true' : '',
+          isRepository: isRepository.value ? "true" : "",
+          isThink: isThink.value ? "true" : "",
         },
-      })
+      });
+    } catch (message: any) {
+      $message.error(message);
+    } finally {
+      loading.value = false;
     }
-    catch (message: any) {
-      $message.error(message)
-    }
-    finally {
-      loading.value = false
-    }
-  }, 1200)
+  }, 1200);
 }
 
 function sendChat(event: any) {
   if (event.keyCode === 13) {
     if (!event.shiftKey) {
-      event.preventDefault()
+      event.preventDefault();
 
-      if (content.value)
-        sendChatFn()
-    }
-    else {
-      const selectionStart = event.target.selectionStart
-      content.value = `${content.value.substring(0, selectionStart)}\n${content.value.substring(selectionStart)}`
+      if (content.value) sendChatFn();
+    } else {
+      const selectionStart = event.target.selectionStart;
+      content.value = `${content.value.substring(
+        0,
+        selectionStart
+      )}\n${content.value.substring(selectionStart)}`;
       nextTick(() => {
-        event.target.setSelectionRange(selectionStart + 1, selectionStart + 1)
-      })
+        event.target.setSelectionRange(selectionStart + 1, selectionStart + 1);
+      });
     }
-  }
-  else {
-    if (content.value)
-      sendChatFn()
+  } else {
+    if (content.value) sendChatFn();
   }
 }
 </script>
@@ -100,30 +97,16 @@ function sendChat(event: any) {
     <!-- 内容 -->
     <!-- 0px 0px 0px .5px var(--dsr-input-border) -->
     <div class="flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
-      <ATextarea
-        v-model:value="content"
-        placeholder="给 DeepSeek 发送消息" autofocus :autosize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!"
-        @keydown.enter.prevent="sendChat"
-      />
+      <ATextarea v-model:value="content" placeholder="给 DeepSeek 发送消息" autofocus :autosize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="sendChat" />
       <div class="mt-10 w-full flex items-center justify-between">
         <div class="flex items-center justify-start">
           <ATooltip placement="left">
             <template v-if="!isThink" #title>
               <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
             </template>
-            <div
-              :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
-              class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
-              @click="isThink = !isThink"
-            >
-              <img
-                v-if="!isThink" src="@/assets/images/think_icon.svg"
-                class="m-r-4 h-18 w-18 cursor-pointer"
-              >
-              <img
-                v-else src="@/assets/images/think_active_icon.svg"
-                class="m-r-4 h-18 w-18 cursor-pointer"
-              >
+            <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']" class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]" @click="isThink = !isThink">
+              <img v-if="!isThink" src="@/assets/images/think_icon.svg" class="m-r-4 h-18 w-18 cursor-pointer">
+              <img v-else src="@/assets/images/think_active_icon.svg" class="m-r-4 h-18 w-18 cursor-pointer">
               <div class="pt-2 vertical-middle text-12">
                 深度思考(R1)
               </div>
@@ -152,10 +135,7 @@ function sendChat(event: any) {
               <template v-if="!content" #title>
                 <span>请输入你的问题</span>
               </template>
-              <div
-                :class="[content ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']"
-                class="h-32 w-32 flex items-center justify-center rounded-50%" @click="sendChat"
-              >
+              <div :class="[content ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']" class="h-32 w-32 flex items-center justify-center rounded-50%" @click="sendChat">
                 <ArrowUpOutlined v-if="!loading" class="text-#fafafa" />
                 <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa" />
               </div>
@@ -168,3 +148,8 @@ function sendChat(event: any) {
 </template>
 
 <style lang='scss' scoped></style>
+<route lang="yaml">
+meta:
+  layout: default
+  requiresAuth: true
+</route>
