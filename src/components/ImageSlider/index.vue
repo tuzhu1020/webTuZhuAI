@@ -81,7 +81,7 @@ const initializePosition = () => {
   if (props.direction === "left") {
     position = 0;
   } else {
-    position = -totalWidth.value+600;
+    position = -totalWidth.value + 600;
   }
 };
 

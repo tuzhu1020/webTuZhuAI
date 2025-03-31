@@ -74,7 +74,9 @@ const userStore = useUserStore();
     <div class="py-16 bg-gray-50">
       <div class=" mx-auto px-4">
         <h2 class="text-3xl font-bold text-center text-gray-800 mb-12">合作伙伴</h2>
-        <div class="space-y-8 bg-gray-100 ">
+        <div class="relative space-y-8 bg-gray-100 ">
+          <div class="absolute left-0 top-0 bottom-0 w-100 z-10 bg-gradient-to-r from-gray-100 to-transparent pointer-events-none"></div>
+          <div class="absolute right-0 top-0 bottom-0 w-100 z-10 bg-gradient-to-l from-gray-100 to-transparent pointer-events-none"></div>
           <ImageSlider :images="PARTNER_IMAGE_URLS.slider1" direction="left" />
           <ImageSlider :images="PARTNER_IMAGE_URLS.slider2" direction="right" />
           <ImageSlider :images="PARTNER_IMAGE_URLS.slider3" direction="left" />

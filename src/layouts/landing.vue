@@ -10,7 +10,7 @@ import zhCN from "ant-design-vue/es/locale/zh_CN";
 <template>
   <AConfigProvider :locale="zhCN">
     <AStyleProvider hash-priority="high" :transformers="[legacyLogicalPropertiesTransformer]">
-      <div class="h-screen bg-gray-50 overflow-y-auto">
+      <div class="h-screen bg-gray-50 overflow-y-auto scrollbar-hide">
         <!-- 顶部导航 -->
         <nav class="bg-white shadow-md fixed w-full top-0 z-50 transition-all duration-300">
           <div class="container mx-auto px-4">

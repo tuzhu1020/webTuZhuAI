@@ -89,7 +89,7 @@ function sendChat(event: any) {
   <div class="m-auto max-w-800 p-x64">
     <div class="mt-46% flex items-center justify-center text-center text-24">
       <img class="mr-18 h-60 w-60" src="@/assets/images/logo.svg">
-      <div>我是DeepSeek(内网版)，很高兴见到你！</div>
+      <div>我是土猪，很高兴见到你！</div>
     </div>
     <div class="mb-32 mt-8 text-center text-14">
       我可以帮你写代码、读文件、写作各种创意内容，请把你的任务交给我吧~
@@ -97,7 +97,7 @@ function sendChat(event: any) {
     <!-- 内容 -->
     <!-- 0px 0px 0px .5px var(--dsr-input-border) -->
     <div class="flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
-      <ATextarea v-model:value="content" placeholder="给 DeepSeek 发送消息" autofocus :autosize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="sendChat" />
+      <ATextarea v-model:value="content" placeholder="给 DeepSeek 发送消息" autofocus :autoSize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="sendChat" />
       <div class="mt-10 w-full flex items-center justify-between">
         <div class="flex items-center justify-start">
           <ATooltip placement="left">
@@ -149,6 +149,7 @@ function sendChat(event: any) {
 
 <style lang='scss' scoped></style>
 <route lang="yaml">
+name: chat
 meta:
   layout: default
   requiresAuth: true
