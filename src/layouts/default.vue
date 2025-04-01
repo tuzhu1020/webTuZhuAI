@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { contextHolder } from '@/composables/antMessage'
-import { ConfigProvider as AConfigProvider, StyleProvider as AStyleProvider, legacyLogicalPropertiesTransformer } from 'ant-design-vue'
-import zhCN from 'ant-design-vue/es/locale/zh_CN'
-import SideBar from './components/SideBar/index.vue'
+import { contextHolder } from "@/composables/antMessage";
+import {
+  ConfigProvider as AConfigProvider,
+  StyleProvider as AStyleProvider,
+  legacyLogicalPropertiesTransformer,
+} from "ant-design-vue";
+import zhCN from "ant-design-vue/es/locale/zh_CN";
+import SideBar from "./components/SideBar/index.vue";
 </script>
 
 <template>

@@ -5,6 +5,7 @@ import {
   legacyLogicalPropertiesTransformer,
 } from "ant-design-vue";
 import zhCN from "ant-design-vue/es/locale/zh_CN";
+import ParticlesClock from "@/components/ParticlesClock/index.vue";
 </script>
 
 <template>
@@ -14,7 +15,7 @@ import zhCN from "ant-design-vue/es/locale/zh_CN";
         <!-- 顶部导航 -->
         <nav class="bg-white shadow-md fixed w-full top-0 z-50 transition-all duration-300">
           <div class="container mx-auto px-4">
-            <div class="flex h-16 items-center justify-between">
+            <div class="flex  items-center justify-between">
               <div class="flex items-center space-x-8">
                 <div class="flex items-center">
                   <img src="@/assets/images/logo.svg" alt="Logo" class="h-10 w-10 transform hover:scale-105 transition-transform duration-300">
@@ -27,6 +28,7 @@ import zhCN from "ant-design-vue/es/locale/zh_CN";
                 </div>
               </div>
               <div class="flex items-center space-x-4">
+                <ParticlesClock :size="100" particleColor="#4F46E5" :particleRadius="1.5" :showSeconds="true" class="hidden md:block mr-4" />
                 <RouterLink to="/login" class="text-gray-600 hover:text-blue-600 transition-colors duration-300">登录</RouterLink>
                 <RouterLink to="/chat" class="rounded-full bg-gradient-to-r from-blue-500 to-purple-500 px-6 py-2 text-white transition-all duration-300 hover:shadow-lg hover:scale-105">
                   开始对话
@@ -37,7 +39,7 @@ import zhCN from "ant-design-vue/es/locale/zh_CN";
         </nav>
 
         <!-- 页面内容 -->
-        <main class="pt-16">
+        <main class="pt-100">
           <RouterView />
         </main>
 
