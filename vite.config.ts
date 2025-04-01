@@ -40,10 +40,7 @@ export default defineConfig({
             dts: "src/typed-router.d.ts",
         }),
 
-        Layouts({
-            layoutsDirs: "src/layouts",
-            defaultLayout: "default",
-        }),
+        Layouts(),
 
         AutoImport({
             imports: [
