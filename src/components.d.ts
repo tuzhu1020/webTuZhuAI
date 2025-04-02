@@ -9,6 +9,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     ImageSlider: typeof import('./components/ImageSlider/index.vue')['default']
     MarkdownPreview: typeof import('./components/MarkdownPreview/index.vue')['default']
+    NavBar: typeof import('./components/NavBar/index.vue')['default']
     ParticlesClock: typeof import('./components/ParticlesClock/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

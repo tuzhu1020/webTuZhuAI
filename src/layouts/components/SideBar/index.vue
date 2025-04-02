@@ -231,11 +231,11 @@ onMounted(() => {
         <!-- 有数据 -->
         <div v-if="sideChatList.length" class="flex-1">
           <div v-for="(item, index) in sideChatList" :key="index" class="mb-24 px-10">
-            <div class="mb-6 px-10 pb-10 text-13 text-#555 font-600">
+            <div class="mb-6 px-10 pb-10 text-13 text-#555 font-600 sticky top-0 z-10 bg-[var(--sidebar-bg)]">
               {{ item.timeStr }}
             </div>
             <div v-for="cur in item.list" :key="cur.id" class="group relative box-border h-38 w-full cursor-pointer overflow-hidden rounded-12 px-10 transition-all duration-300 hover:bg-[var(--sidebar-hover)]" :class="curChatId === String(cur.id) ? 'bg-[var(--primary-bg-color)]' : ''" @click="router.push({ path: `/chat/${cur.id}` })">
-              <div class="whitespace-nowp overflow-hidden p-r-12 text-14 text-[var(--text-color)] lh-38">
+              <div class="whitespace-nowp overflow-hidden p-r-12 text-15 text-[var(--text-color)] lh-38">
                 <ATooltip v-if="!cur._isEdit" placement="top">
                   {{ cur.title }}
                 </ATooltip>

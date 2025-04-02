@@ -292,3 +292,427 @@ pnpm test
     - 增大数字间距，提高可读性
     - 增加不同类型粒子的尺寸差异，强化层次感
     - 加强爆炸效果的动态表现，增强视觉冲击
+
+### 首页UI美化升级
+
+为了提供更现代化、视觉冲击力强的用户界面，我们对首页进行了全面美化：
+
+1. 视觉设计升级
+
+    - 增加装饰性背景元素和模糊效果
+    - 应用渐变色文字和背景
+    - 改进卡片设计，添加悬停动画
+    - 优化按钮样式，采用圆角设计
+
+2. 交互体验提升
+
+    - 添加细腻的过渡动画
+    - 实现悬停时的变换效果
+    - 增强视觉反馈，提升用户参与感
+    - 使用微妙阴影增强层次感
+
+3. 布局优化
+
+    - 采用更宽敞的内容区域布局
+    - 添加装饰性背景元素
+    - 改进间距和比例关系
+    - 优化移动端和桌面端的显示效果
+
+4. 内容呈现
+    - 改进文字排版和大小
+    - 增强视觉层次感
+    - 添加强调性设计元素
+    - 优化图片展示效果
+
+这些改进大幅提升了首页的现代感和专业度，为用户提供更愉悦的视觉体验。
+
+## 最近更新
+
+### 隐藏滚动条功能
+
+为了提供更加清爽的用户界面，我们实现了滚动条隐藏功能：
+
+- 创建了专用的 `scrollbar.css` 样式文件，定义了隐藏滚动条但保留滚动功能的样式
+- 在 `video.vue` 和 `landing.vue` 布局中应用了 `scrollbar-hide` 类
+- 支持所有主流浏览器（Chrome、Firefox、Safari、Edge等）
+
+```css
+/* 隐藏滚动条但保留滚动功能 */
+.scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+}
+```
+
+使用方法：只需要在需要隐藏滚动条的元素上添加 `scrollbar-hide` 类即可。
+
+### 页面布局优化
+
+为了提供更简约、现代的用户界面，我们对布局进行了如下优化：
+
+1. 移除页脚设计
+
+    - 简化了视频和着陆页面的布局结构
+    - 删除了复杂的页脚网格和链接组
+    - 集中用户注意力于核心内容
+
+2. 改进布局结构
+
+    - 应用了 Flexbox 布局使内容区域自动扩展
+    - 添加了 `flex-col` 和 `flex-1` 类优化空间利用
+    - 保持了隐藏滚动条的特性，确保页面美观
+
+3. 视觉体验提升
+    - 减少了视觉干扰元素
+    - 简约设计使用户更专注于内容
+    - 提高了整体用户体验
+
+这些优化使界面更加简洁、轻量，同时保持了核心功能和导航的可访问性。
+
+### 2024-07-08 (侧边栏UI交互优化)
+
+1. 时间分组标题吸顶功能
+
+    - 为侧边栏中的时间分组标题添加吸顶效果
+    - 时间标题在滚动时保持在顶部可见
+    - 当下一个时间分组出现时自动替换
+    - 优化用户浏览历史对话的体验
+    - 增强界面交互的连贯性
+
+# AI 助手 & 视频平台
+
+这是一个集 AI 对话和视频平台于一体的综合性应用，提供智能 AI 助手服务和类似哔哩哔哩的视频上传、播放和弹幕互动功能。
+
+## 项目结构
+
+项目使用 Vue 3 + TypeScript + Ant Design Vue 开发，采用了模块化的架构设计，主要包含以下部分：
+
+- **AI 助手**：提供智能对话服务
+- **视频平台**：支持视频上传、播放和弹幕互动
+- **用户系统**：用户注册、登录和个人中心
+
+## 功能特点
+
+### AI 助手
+
+- 智能对话：采用先进的自然语言处理技术，精准理解用户需求
+- 高效协作：快速响应，提供专业解决方案
+- 安全可靠：采用先进加密技术，确保数据安全
+
+### 视频平台
+
+- 视频上传：支持用户上传原创视频内容
+- 视频播放：高清流畅的视频播放体验
+- 弹幕互动：支持实时弹幕发送和显示
+- 视频管理：个人视频管理和数据统计
+
+## 技术实现
+
+### 前端技术栈
+
+- Vue 3：核心框架
+- TypeScript：类型系统
+- Ant Design Vue：UI 组件库
+- TailwindCSS：原子化 CSS 工具
+- Vue Router：路由管理
+- Pinia：状态管理
+
+### 布局与组件
+
+#### 布局系统
+
+- **landing 布局**：用于首页和营销页面，包含导航和页脚
+- **default 布局**：用于 AI 助手等功能，包含侧边栏
+- **video 布局**：专为视频平台设计，无侧边栏，提供全屏体验
+
+#### 导航组件
+
+- 实现了可复用的 NavBar 组件，用于全站导航
+- 使用 RouterLink 实现路由跳转
+- 添加了响应式设计，适配不同屏幕尺寸
+
+### 首页设计
+
+- 简约美观的首页设计，突出主要功能
+- 核心功能区展示 AI 助手的主要特点
+- 视频平台引导区，引导用户前往视频平台
+
+### 视频平台
+
+- 视频列表展示
+- 视频搜索功能
+- 视频上传入口
+- 弹幕互动演示
+
+## 近期更新
+
+- 将顶部导航封装为可复用组件
+- 美化首页，采用简约风格
+- 新增视频平台入口和页面
+- 实现弹幕动画效果
+- 新增视频平台专用布局，移除侧边栏
+- 优化视频平台界面，参考哔哩哔哩风格设计
+- 新增视频详情页，支持视频播放和弹幕互动
+- 实现弹幕颜色、大小、位置等设置功能
+- 添加视频上传弹窗，支持视频信息填写和文件上传
+
+## 后续计划
+
+- 完善视频上传功能，增加进度条和上传状态显示
+- 实现完整的视频播放器，支持倍速播放、音量控制等
+- 增强弹幕系统，支持更多互动方式
+- 优化移动端适配
+- 添加视频点赞、投币、收藏等互动功能
+- 实现视频数据分析统计功能
+
+## 组件封装与 UI 优化总结
+
+### NavBar 组件封装
+
+- 从 landing.vue 中提取导航栏，封装为独立组件
+- 添加了视频平台入口链接
+- 优化了组件的响应式布局
+
+### 首页 UI 改进
+
+- 重新设计了主横幅，采用左文右图布局
+- 优化了核心功能卡片，使用渐变背景
+- 添加了视频平台引导区
+- 移除了合作伙伴轮播，使页面更加简洁
+
+### 视频平台页面
+
+- 实现了视频列表显示
+- 添加了视频功能区（上传、搜索）
+- 设计了弹幕互动演示区
+- 使用 CSS 动画实现弹幕滚动效果
+- 创建专用布局，移除侧边栏，提供更好的视频浏览体验
+
+### 视频平台优化（哔哩哔哩风格）
+
+- 重新设计首页布局，增加视频分类导航栏
+- 添加轮播图展示重要内容
+- 重新设计视频卡片样式，增加更多视频信息
+- 优化视频上传入口，使用醒目的粉色按钮
+- 添加分区视频展示区域
+- 实现视频搜索功能
+
+### 视频详情页实现
+
+- 设计视频播放器界面，支持基本的播放控制
+- 实现弹幕系统，支持不同颜色弹幕
+- 添加弹幕设置面板，可以设置弹幕颜色、大小和位置
+- 展示视频信息、UP 主信息和评论区
+- 添加互动功能，包括点赞、投币、收藏和分享
+- 右侧展示相关推荐视频
+
+### 用户体验优化
+
+- 使用过渡动画提升界面交互体验
+- 设计直观的弹幕设置界面
+- 优化视频卡片悬停效果
+- 添加回到顶部按钮
+- 实现响应式布局，适配不同屏幕尺寸
+
+# SkyVue AI聊天应用
+
+## 新增聊天流管理功能
+
+为解决AI输出过程中切换会话导致的混乱问题，我们实现了聊天流的隔离管理：
+
+### 核心改进
+
+1. **会话流隔离**：每个聊天会话拥有独立的流控制器，切换会话时不会相互干扰
+2. **自动中断**：当切换到新会话时，旧会话的AI输出流会自动中断，避免混乱
+3. **状态恢复**：切换回之前的会话，AI可以继续之前的对话而不会出现混淆
+
+### 技术实现
+
+1. 创建了专门的`chatStreams`状态管理模块，用于跟踪和控制各个会话的流状态
+2. 使用路由监听实现会话切换时自动处理流状态
+3. 组件卸载时自动清理资源，确保不会产生内存泄漏
+
+### 使用方法
+
+用户无需任何额外操作，可以自由切换会话，系统会自动管理每个会话的AI输出流。
+
+## 实现细节
+
+### chatStreams Store
+
+```typescript
+// src/stores/chatStreams.ts
+import { acceptHMRUpdate, defineStore } from "pinia";
+import { ref } from "vue";
+
+interface IChatStream {
+    id: string; // 会话ID
+    controller: AbortController | null; // 流控制器
+    active: boolean; // 是否激活
+}
+
+export const useChatStreamsStore = defineStore("chatStreams", () => {
+    // 所有聊天流的状态管理
+    const chatStreams = ref<Record<string, IChatStream>>({});
+
+    // 创建新的聊天流控制器
+    function createStream(chatId: string): AbortController {
+        // 如果当前已有流并且处于活动状态，先终止
+        if (chatStreams.value[chatId]?.active) {
+            abortStream(chatId);
+        }
+
+        // 创建新控制器
+        const controller = new AbortController();
+
+        // 更新状态
+        chatStreams.value[chatId] = {
+            id: chatId,
+            controller,
+            active: true,
+        };
+
+        return controller;
+    }
+
+    // 中止指定会话的流
+    function abortStream(chatId: string): void {
+        const stream = chatStreams.value[chatId];
+        if (stream?.controller && !stream.controller.signal.aborted) {
+            stream.controller.abort();
+            stream.active = false;
+        }
+    }
+
+    // 其他管理函数...
+
+    return {
+        chatStreams,
+        createStream,
+        abortStream,
+        // ...其他方法
+    };
+});
+```
+
+### 聊天页面中的应用
+
+```typescript
+// src/pages/chat/[id].vue
+// 使用聊天流管理store
+const chatStreamsStore = useChatStreamsStore();
+
+// 监听路由变化
+watch(
+    chatId,
+    (newId, oldId) => {
+        // 如果有旧会话且切换到新会话，中止旧会话的流
+        if (
+            oldId &&
+            newId !== oldId &&
+            chatStreamsStore.hasActiveStream(oldId)
+        ) {
+            chatStreamsStore.abortStream(oldId);
+        }
+        getChatDetail();
+    },
+    { immediate: true },
+);
+
+// 发送消息时使用store创建控制器
+async function sendChat() {
+    if (content.value && !loading.value) {
+        // ...
+        const controller = chatStreamsStore.createStream(chatId.value);
+        const signal = controller.signal;
+        // ...
+
+        try {
+            // 使用signal请求数据...
+        } finally {
+            // 标记流已完成
+            if (chatStreamsStore.hasActiveStream(chatId.value)) {
+                chatStreamsStore.abortStream(chatId.value);
+            }
+        }
+    }
+}
+
+// 组件卸载时清理资源
+onUnmounted(() => {
+    if (chatStreamsStore.hasActiveStream(chatId.value)) {
+        chatStreamsStore.abortStream(chatId.value);
+    }
+});
+```
+
+## 更新：会话隔离完整解决方案
+
+我们已经完全解决了AI输出过程中切换会话导致的显示错误问题。新版本实现了完整的会话隔离管理机制，包含以下两个关键组件：
+
+### 1. 聊天流管理 (chatStreams)
+
+用于管理各个会话的网络请求流，确保切换会话时能够正确中断和恢复HTTP请求。
+
+### 2. 会话消息管理 (chatMessages) - 新增
+
+为彻底解决会话混乱问题，我们实现了全新的会话消息管理机制：
+
+- **消息完全隔离**：每个会话的消息内容都独立存储，互不干扰
+- **状态隔离**：每个会话的loading、spinning、pauseing等状态都单独管理
+- **状态同步**：确保UI状态与网络请求状态始终保持同步
+- **状态持久化**：切换会话时保留每个会话的状态，切换回来时可以恢复
+- **会话激活处理**：在会话激活时自动检查并同步状态
+
+### 技术实现
+
+1. **Pinia状态管理**：使用Pinia创建两个专用store
+
+    - `chatStreams`：管理网络请求流
+    - `chatMessages`：管理会话消息和状态
+
+2. **计算属性驱动UI**：页面中所有状态通过计算属性从store获取
+
+    ```typescript
+    const loading = computed(() => chatMessagesStore.getLoading(chatId.value));
+    const chatMessageList = computed(() =>
+        chatMessagesStore.getMessages(chatId.value),
+    );
+    ```
+
+3. **路由监听**：监听会话切换，自动处理状态转换
+
+    ```typescript
+    watch(chatId, (newId, oldId) => {
+        // 处理旧会话状态
+        if (oldId && newId !== oldId) {
+            // 中断旧会话的流
+            // 标记旧会话状态
+        }
+        // 初始化新会话
+    });
+    ```
+
+4. **生命周期钩子**：利用onActivated确保会话激活时状态同步
+    ```typescript
+    onActivated(() => {
+        // 检查并同步会话状态
+        // 解决切换后再返回导致的状态不一致问题
+    });
+    ```
+
+### 优势
+
+1. **完全隔离**：各会话的消息和状态完全隔离，互不影响
+2. **切换无干扰**：切换会话时，AI输出不会显示在错误的会话中
+3. **状态持久化**：切换回会话时，状态保持一致
+4. **行为可预测**：用户体验更加流畅，系统行为可预测
+5. **代码可维护性**：状态管理集中化，逻辑更清晰
+
+### 使用方法
+
+用户无需任何额外操作，系统会自动管理会话状态与内容。与之前的版本相比，新版本提供了更可靠的会话隔离体验，完全解决了会话切换导致的AI输出错乱问题。

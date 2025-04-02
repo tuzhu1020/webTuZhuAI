@@ -9,6 +9,8 @@ import reChatNameService from "@/service/chat/reChatNameService";
 import saveChatRecordService from "@/service/chat/saveChatRecordService";
 
 import { useUserStore } from "@/stores/user";
+import { useChatStreamsStore } from "@/stores/chatStreams";
+import { useChatMessagesStore, ChatMessage } from "@/stores/chatMessages";
 
 import SearchResult from "@/weights/Chat/SearchResult/index.vue";
 import Tools from "@/weights/Chat/Tools/index.vue";
@@ -30,6 +32,16 @@ import {
   message,
 } from "ant-design-vue";
 import { MdPreview } from "md-editor-v3";
+import {
+  onMounted,
+  onUnmounted,
+  ref,
+  computed,
+  watch,
+  nextTick,
+  onActivated,
+} from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 import "md-editor-v3/lib/style.css";
 
@@ -42,52 +54,30 @@ const router = useRouter();
 const isThink = ref<boolean>(false);
 const isRepository = ref<boolean>(false);
 const content = ref<string>("");
-const pauseing = ref<boolean>(true);
 const [messageApi, contextHolder] = message.useMessage();
-const chatMessageList = ref<Array<any>>([
-  //   {
-  //     content: '1',
-  //     role: 'user',
-  //     id: 1739426893684,
-  //     type: 'my',
-  //   },
-  //   {
-  //     data: [
-  //       {
-  //         index: 0,
-  //         message: {
-  //           role: 'assistant',
-  //           content: '<think>123123123</think>\n\n您好！请问有什么可以帮助您的？如果您有任何问题或需要建议，请随时告诉我。',
-  //         },
-  //         finish_reason: 'stop',
-  //       },
-  //     ],
-  //     isSpread: true,
-  //     role: 'assistant',
-  //     id: 1739426893979,
-  //     type: 'robot',
-  //   },
-]);
 const chatContainer = ref(null);
-const controller = ref<any>(null);
-// const maxLen = 26000 // 模型最大字符数(关联)
-const loading = ref<boolean>(false);
-const spinning = ref<boolean>(false);
 const chatTitle = ref<string>("");
 const oldChatTitle = ref<string>();
 const userStore = useUserStore();
+const chatStreamsStore = useChatStreamsStore();
+const chatMessagesStore = useChatMessagesStore();
 const visibleSearchResult = ref<boolean>(false);
 const searchResultData = ref<any[]>([]);
 
 const chatId = computed(() => route.params?.id as string);
-// const isFirstEntry = computed(() => !chatMessageList.value.length)
+
+const loading = computed(() => chatMessagesStore.getLoading(chatId.value));
+const spinning = computed(() => chatMessagesStore.getSpinning(chatId.value));
+const pauseing = computed(() => chatMessagesStore.getPauseing(chatId.value));
+const chatMessageList = computed(() =>
+  chatMessagesStore.getMessages(chatId.value)
+);
 
 watch(
   () => route.query,
   async (query) => {
     isThink.value = query.isThink === "true";
     isRepository.value = query.isRepository === "true";
-    // await sendChat()
   },
   {
     immediate: true,
@@ -97,11 +87,25 @@ watch(
 
 watch(
   chatId,
-  () => {
+  (newId, oldId) => {
+    if (oldId && newId !== oldId && chatStreamsStore.hasActiveStream(oldId)) {
+      chatStreamsStore.abortStream(oldId);
+      chatMessagesStore.setLoading(oldId, false);
+      chatMessagesStore.setPauseing(oldId, true);
+      const oldMessages = chatMessagesStore.getMessages(oldId);
+      if (oldMessages.length > 0) {
+        chatMessagesStore.updateLastMessage(oldId, {
+          loading: false,
+          pauseing: true,
+        });
+      }
+    }
+    chatMessagesStore.initChat(newId);
     getChatDetail();
   },
   { immediate: true }
 );
+
 watch(
   () => userStore.chatList,
   (newVal: any[]) => {
@@ -172,16 +176,21 @@ function parseMergeObj(lastChatItem: any, data: any) {
 
 async function sendChat() {
   if (content.value && !loading.value) {
-    loading.value = true;
-    chatMessageList.value.push(generatorMyChatList(content.value));
+    chatMessagesStore.setLoading(chatId.value, true);
+
+    const myMessage = generatorMyChatList(content.value);
+    chatMessagesStore.addMessage(chatId.value, myMessage);
+
     saveChatRecord();
 
     const startTime = new Date().getTime();
-    controller.value = new AbortController();
-    const signal = controller.value.signal;
+    const controller = chatStreamsStore.createStream(chatId.value);
+    const signal = controller.signal;
     let docs = null;
 
-    chatMessageList.value.push(generatorAiChatList({}));
+    const aiMessage = generatorAiChatList({});
+    chatMessagesStore.addMessage(chatId.value, aiMessage);
+
     setTimeout(() => {
       scrollToBottom();
     }, 500);
@@ -204,25 +213,10 @@ async function sendChat() {
           Authorization: userStore.token,
         },
         body: JSON.stringify({
-          // docs,
-          // model: 'deepseek-r1:32b',
           model: isThink.value ? "deepseek-reasoner" : "deepseek-chat",
-          // model:  'deepseek-r1:32b',
-          // model: 'Qwen2',
-          // messages: [
-          //   {
-          //     role: 'system',
-          //     content: content.value,
-          //   },
-          //   {
-          //     role: 'user',
-          //     content: content.value,
-          //   },
-          // ],
-          // rag: isRepository.value,
           messages: chatMessageList.value
             .map((item) => {
-              const isUser = item.role === "user";
+              const isUser = item.role === AI_IDENTITY_USER_VALUE;
               return {
                 role: isUser ? item.role : "assistant",
                 content: isUser
@@ -235,38 +229,14 @@ async function sendChat() {
         }),
       });
 
-      pauseing.value = false;
-      // console.log(resp,'resp');
+      chatMessagesStore.setPauseing(chatId.value, false);
 
-      // const reader = resp.body?.pipeThrough(new TextDecoderStream()).pipeThrough(TransformUtils.splitStream('\n')).getReader()
       const reader = resp?.body?.getReader();
-      // console.log(reader,'reader');
-
       const nosupportReader = resp?.body?.getReader;
-      // console.log(nosupportReader,'nosupportReader');
-
-      // const text1 = await resp.blob()
-      // const reader = await resp.text()
-      // console.log(resp, 'resp')
-      // console.log(resp.body, 'resp.b')
-      // console.log(reader, 'reader')
       const textDecoder = new TextDecoder();
-      // console.log(textDecoder, 'textDecoder')
-
-      // typeof TextDecoderStream !== 'undefined'
-      // if (false) {
-      //   reader = resp.body?.pipeThrough(new TextDecoderStream()).pipeThrough(TransformUtils.splitStream('\n')).getReader()
-      // }
-      // else {
-      //   const readerInstance = resp.body?.getReader()
-      //   const textDecoder = new TextDecoder('utf-8')
-      //   reader = processStream(readerInstance, textDecoder)
-      // }
       let buffer = "";
 
       while (1) {
-        // let filterParseData = []
-        // let decodeDataSplitList = []
         let done;
         if (nosupportReader) {
           const { done: readerDone, value } = await reader.read();
@@ -274,58 +244,32 @@ async function sendChat() {
 
           if (!value) {
             content.value = "";
-            chatMessageList.value[chatMessageList.value.length - 1].loading =
-              false;
+            chatMessagesStore.updateLastMessage(chatId.value, {
+              loading: false,
+            });
             break;
           }
 
-          // const decodeData = textDecoder?.decode(value, { stream: true })
           buffer += textDecoder?.decode(value, { stream: true });
-          // console.log(buffer,'buffer111111');
-
-          // decodeDataSplitList = decodeData.split('\n').filter(item => item)
         } else if (!window.ReadableStream || !resp.body?.getReader) {
           buffer += await resp.text();
           const lines = buffer.split("\n");
-          // console.log(lines,'lines');
 
           buffer = lines.pop() || "";
           for (const line of lines) {
             if (line.trim()) {
               const data = parseJsonLikeData(line);
-              // console.log(data, 'data')
               if (data && !data.done) {
                 const lastChatItem =
                   chatMessageList.value[chatMessageList.value.length - 1];
                 if (lastChatItem.id) {
                   const newData = parseMergeObj(lastChatItem, data);
-                  // console.log(newData, 'newData')
                   if (newData.choices?.[0]) {
                     newData.choices = newData.choices.map((item) => {
                       const str = item.delta.content || "";
                       const thinkStr = item.delta.reasoning_content || "";
                       console.log(thinkStr, "thinkStr");
 
-                      // const thinkStart = str.indexOf('<think>')
-                      // const thinkEnd = str.indexOf('</think>')
-                      // const strList = (thinkStart >= 0 ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length) : '').split('\n')
-                      // const thinkStart = str.indexOf('<think>')
-                      // const thinkEnd = str.indexOf('</think>')
-                      // // console.log(thinkStart, thinkEnd, 'thinkStart, thinkEnd',str)
-                      // const strList = (
-                      //   thinkStart >= 0
-                      //     ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length)
-                      //     : thinkEnd >= 0
-                      //       ? str.substring(0, thinkEnd)
-                      //       : ''
-                      // ).split('\n')
-                      // if (thinkEnd >= 0) {
-                      //   chatMessageList.value[chatMessageList.value.length - 1].thinkTime = (new Date().getTime() - startTime) / 1000
-                      // }
-                      // if (thinkStr) {
-
-                      // }
-                      // console.log(strList, 'strList',str.substring(thinkEnd + 8, str.length))
                       return {
                         ...item,
                         _thinkContent: thinkStr.split("\n"),
@@ -336,11 +280,15 @@ async function sendChat() {
                   await new Promise((resolve) =>
                     setTimeout(resolve, Math.floor(Math.random() * 30))
                   );
-                  chatMessageList.value[chatMessageList.value.length - 1] =
-                    generatorAiChatList(newData);
+                  chatMessagesStore.updateLastMessage(
+                    chatId.value,
+                    generatorAiChatList(newData)
+                  );
                 } else {
-                  chatMessageList.value[chatMessageList.value.length - 1] =
-                    generatorAiChatList({ ...data, docs });
+                  chatMessagesStore.updateLastMessage(
+                    chatId.value,
+                    generatorAiChatList({ ...data, docs })
+                  );
                 }
                 scrollToBottom();
               }
@@ -349,59 +297,38 @@ async function sendChat() {
           done = true;
         } else {
           buffer += await resp.text();
-          // decodeDataSplitList = data.split('\n').filter(item => item)
           done = true;
         }
 
         if (done) {
-          chatMessageList.value[chatMessageList.value.length - 1].loading =
-            false;
-          chatMessageList.value[chatMessageList.value.length - 1].pauseing =
-            true;
+          chatMessagesStore.updateLastMessage(chatId.value, {
+            loading: false,
+            pauseing: true,
+          });
           break;
         }
 
-        // buffer += textDecoder.decode(value, { stream: true })
-
         const lines = buffer.split("\n");
-        // console.log(lines,'lines');
-
         buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.trim()) {
             const data = parseJsonLikeData(line);
-            // console.log(data, 'data')
             if (data && !data.done) {
               const lastChatItem =
                 chatMessageList.value[chatMessageList.value.length - 1];
               if (lastChatItem.id) {
                 const newData = parseMergeObj(lastChatItem, data);
-                // console.log(newData, 'newData')
                 if (newData.choices?.[0]) {
                   newData.choices = newData.choices.map((item) => {
                     const str = item.delta.content || "";
                     const thinkStr = item.delta.reasoning_content || "";
 
-                    // const thinkStart = str.indexOf('<think>')
-                    // const thinkEnd = str.indexOf('</think>')
-                    // const strList = (thinkStart >= 0 ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length) : '').split('\n')
-                    // const thinkStart = str.indexOf('<think>')
-                    // const thinkEnd = str.indexOf('</think>')
-                    // // console.log(thinkStart, thinkEnd, 'thinkStart, thinkEnd',str)
-                    // const strList = (
-                    //   thinkStart >= 0
-                    //     ? str.substring(thinkStart + 7, thinkEnd >= 0 ? thinkEnd : str.length)
-                    //     : thinkEnd >= 0
-                    //       ? str.substring(0, thinkEnd)
-                    //       : ''
-                    // ).split('\n')
                     if (str) {
-                      chatMessageList.value[
-                        chatMessageList.value.length - 1
-                      ].thinkTime = (new Date().getTime() - startTime) / 1000;
+                      chatMessagesStore.updateLastMessage(chatId.value, {
+                        thinkTime: (new Date().getTime() - startTime) / 1000,
+                      });
                     }
-                    // console.log(strList, 'strList',str.substring(thinkEnd + 8, str.length))
                     return {
                       ...item,
                       _thinkContent: thinkStr.split("\n"),
@@ -412,11 +339,15 @@ async function sendChat() {
                 await new Promise((resolve) =>
                   setTimeout(resolve, Math.floor(Math.random() * 30))
                 );
-                chatMessageList.value[chatMessageList.value.length - 1] =
-                  generatorAiChatList(newData);
+                chatMessagesStore.updateLastMessage(
+                  chatId.value,
+                  generatorAiChatList(newData)
+                );
               } else {
-                chatMessageList.value[chatMessageList.value.length - 1] =
-                  generatorAiChatList({ ...data, docs });
+                chatMessagesStore.updateLastMessage(
+                  chatId.value,
+                  generatorAiChatList({ ...data, docs })
+                );
               }
               scrollToBottom();
             }
@@ -430,20 +361,25 @@ async function sendChat() {
         messageApi.error(error.message || "请求失败");
       }
     } finally {
-      loading.value = false;
-      pauseing.value = true;
-      const lastMessage =
-        chatMessageList.value[chatMessageList.value.length - 1];
-      lastMessage.loading = false;
-      lastMessage.pauseing = true;
-      lastMessage.thinkTime = (new Date().getTime() - startTime) / 1000;
+      chatMessagesStore.setLoading(chatId.value, false);
+      chatMessagesStore.setPauseing(chatId.value, true);
+
+      chatMessagesStore.updateLastMessage(chatId.value, {
+        loading: false,
+        pauseing: true,
+        thinkTime: (new Date().getTime() - startTime) / 1000,
+      });
+
       saveChatRecord();
+
+      if (chatStreamsStore.hasActiveStream(chatId.value)) {
+        chatStreamsStore.abortStream(chatId.value);
+      }
     }
   }
 }
 
 async function saveChatRecord() {
-  // 只有一条数据表示首次 不需要保存聊天记录
   if (chatMessageList.value.length === 1) return;
 
   try {
@@ -455,11 +391,11 @@ async function saveChatRecord() {
       title: chatTitle.value,
     });
   } catch (message: any) {
-    $message.error(message);
+    messageApi.error(message);
   }
 }
 
-function generatorMyChatList(content: string) {
+function generatorMyChatList(content: string): ChatMessage {
   return {
     content,
     role: AI_IDENTITY_USER_VALUE,
@@ -469,9 +405,8 @@ function generatorMyChatList(content: string) {
   };
 }
 
-function generatorAiChatList(data: any) {
+function generatorAiChatList(data: any): ChatMessage {
   return {
-    // data: data?.choices || [],
     choices: data?.choices || [],
     role: AI_IDENTITY_AI_VALUE,
     id: data?.id,
@@ -498,60 +433,59 @@ function handlePackToolsToList(list: any[]) {
 
 function scrollToBottom() {
   if (chatContainer.value) {
-    // chatContainer.value.scrollIntoView({ behavior: 'smooth', block: 'end' })
-    // setTimeout(() => {
     chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
     chatContainer.value.scrollTo(0, chatContainer.value.scrollHeight);
-    // }, 1200)
   }
 }
 
 function handlePause() {
-  if (controller.value.signal.aborted) {
-    return;
+  if (chatStreamsStore.hasActiveStream(chatId.value)) {
+    chatStreamsStore.abortStream(chatId.value);
+    chatMessagesStore.setPauseing(chatId.value, true);
+    chatMessagesStore.setLoading(chatId.value, false);
+    chatMessagesStore.updateLastMessage(chatId.value, {
+      loading: false,
+      pauseing: true,
+    });
   }
-  controller.value.abort(); // 中止请求
-  pauseing.value = true;
-  loading.value = false;
-  chatMessageList.value[chatMessageList.value.length - 1].loading = false;
-  chatMessageList.value[chatMessageList.value.length - 1].pauseing = true;
 }
 
-// 获取会话详情
 async function getChatDetail() {
-  spinning.value = true;
+  chatMessagesStore.setSpinning(chatId.value, true);
+
   try {
     const data: {
       list: Array<any>;
       title: string;
     } = (await getChatDetailService({ conversationId: chatId.value })) as any;
-    // console.log(data, 'data')
+
     const isSendChat =
       data.list[data.list.length - 1]?.role === AI_IDENTITY_USER_VALUE;
 
-    chatMessageList.value = data.list.map((item) => JSON.parse(item.content));
-    // console.log(chatMessageList.value, 'chatMessageList.value111111')
-    chatMessageList.value = handlePackToolsToList(chatMessageList.value);
-    // console.log(chatMessageList.value, 'chatMessageList.value222222')
+    const messageList = data.list.map((item) => JSON.parse(item.content));
+    const packedMessages = handlePackToolsToList(messageList);
+
+    chatMessagesStore.setMessages(chatId.value, packedMessages);
+
     chatTitle.value = data.title;
 
     if (isSendChat) {
-      const lastData = chatMessageList.value.splice(
-        chatMessageList.value.length - 1,
-        1
-      );
-      content.value = lastData?.[0].content;
-      chatTitle.value = lastData?.[0].content?.substring(0, 32) || data.title;
+      const lastData = packedMessages.pop();
+      chatMessagesStore.setMessages(chatId.value, packedMessages);
+
+      content.value = lastData?.content;
+      chatTitle.value = lastData?.content?.substring(0, 32) || data.title;
       handleUpdateTitle();
       sendChat();
     }
+
     nextTick(() => {
       scrollToBottom();
     });
   } catch (message: any) {
-    $message.error(message);
+    messageApi.error(message);
   } finally {
-    spinning.value = false;
+    chatMessagesStore.setSpinning(chatId.value, false);
   }
 }
 
@@ -568,7 +502,7 @@ async function handleUpdateTitle() {
     });
     userStore.getChatList();
   } catch (message: any) {
-    $message.error(message);
+    messageApi.error(message);
   }
 }
 
@@ -592,14 +526,29 @@ function adjustInputWidth() {
     const width = span.offsetWidth;
     document.body.removeChild(span);
 
-    // 设置input宽度，加上一些padding
     input.style.width = `${Math.min(Math.max(width + 32, 60), 480)}px`;
   });
 }
 
 function handleToolsCopy(content) {
   const textArea = document.createElement("textarea");
-  textArea.value = content.replace(/\n\n/g, "");
+
+  const strippedContent = content
+    .replace(/\n\n/g, "\n")
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/`{3}[\s\S]*?`{3}/g, (match) => {
+      return match.replace(/^```[\w]*\n/, "").replace(/```$/, "");
+    })
+    .replace(/`(.*?)`/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    .replace(/!\[([^\]]+)\]\(([^)]+)\)/g, "")
+    .replace(/>\s+(.*)/g, "$1")
+    .replace(/- /g, "• ")
+    .replace(/\d+\.\s+/g, "");
+
+  textArea.value = strippedContent;
   document.body.appendChild(textArea);
   textArea.select();
   document.execCommand("copy");
@@ -618,12 +567,44 @@ onMounted(() => {
 watch(chatTitle, () => {
   adjustInputWidth();
 });
+
+onUnmounted(() => {
+  if (chatStreamsStore.hasActiveStream(chatId.value)) {
+    chatStreamsStore.abortStream(chatId.value);
+  }
+});
+
+onActivated(() => {
+  if (chatMessageList.value.length > 0) {
+    const lastMessage = chatMessageList.value[chatMessageList.value.length - 1];
+    if (lastMessage.role === AI_IDENTITY_AI_VALUE) {
+      if (chatStreamsStore.hasActiveStream(chatId.value)) {
+        chatMessagesStore.setLoading(chatId.value, true);
+        chatMessagesStore.setPauseing(chatId.value, false);
+        chatMessagesStore.updateLastMessage(chatId.value, {
+          loading: true,
+          pauseing: false,
+        });
+      } else {
+        chatMessagesStore.setLoading(chatId.value, false);
+        chatMessagesStore.setPauseing(chatId.value, true);
+        chatMessagesStore.updateLastMessage(chatId.value, {
+          loading: false,
+          pauseing: true,
+        });
+      }
+    }
+  }
+
+  nextTick(() => {
+    scrollToBottom();
+  });
+});
 </script>
 
 <template>
   <div class="flex flex-col overflow-hidden">
     <div class="m-auto h-screen w-full flex flex-col">
-      <!-- 标题 -->
       <div class="relative inline-block w-full self-center justify-center p-t-24">
         <div v-show="chatTitle || oldChatTitle" ref="titleInput" class="chat-title m-auto m-auto flex cursor-pointer overflow-hidden text-ellipsis rounded-12 p-x-12 p-y-8 text-center text-center text-nowrap text-16 font-600 tracking-widest">
           <AInput v-model:value="chatTitle" type="text" class="m-auto border-0 text-center" size="large" placeholder="请输入标签" :maxlength="32" @focus="oldChatTitle = chatTitle" @blur="handleUpdateTitle" @input="adjustInputWidth" />
@@ -631,7 +612,6 @@ watch(chatTitle, () => {
         <div class="absolute bottom-0 z-1 h-32 w-full translate-y-[100%] from-[rgb(255,255,255)] bg-gradient-to-b opacity-70" />
       </div>
 
-      <!-- 聊天框 -->
       <div ref="chatContainer" class="w-full flex-1 overflow-y-auto p-b-40 p-t-42">
         <ASpin :spinning="spinning">
           <div class="m-auto w-[var(--content-max-width)]">
@@ -644,7 +624,7 @@ watch(chatTitle, () => {
                   {{ item.content }}
                 </div>
               </div>
-              <div v-else :key="item.id" :class="[index + 1 === chatMessageList.length && loading ? 'm-b-0 p-b-0' : ' m-b-16 p-b-32']" class="robot flex items-start justify-start">
+              <div v-else :key="item.id" :class="[index + 1 === chatMessageList.length && loading ? 'm-b-0 p-b-0' : ' m-b-16 p-b-32']" class="robot flex items-start justify-start w-[var(--content-max-width)]">
                 <div class="m-r-16 border-width-1 border-color-#d5e4ff rounded-50% border-style-solid p-2">
                   <img class="h-28 w-28" src="@/assets/images/logo.svg">
                 </div>
@@ -679,7 +659,6 @@ watch(chatTitle, () => {
                       </div>
                     </div>
                     <div class="no-think whitespace-normal lh-2em">
-                      <!-- {{ cur._content }} -->
                       <MdPreview class="p-0" :model-value="cur._content" />
                     </div>
                   </template>
@@ -703,7 +682,6 @@ watch(chatTitle, () => {
         </ASpin>
       </div>
 
-      <!-- 发送框 -->
       <div>
         <div class="m-auto w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
           <ATextarea v-model:value="content" placeholder="给 DeepSeek 发送消息" autofocus :autoSize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="handleEnterSendChat" />
@@ -721,21 +699,6 @@ watch(chatTitle, () => {
                   </div>
                 </div>
               </ATooltip>
-              <!-- <ATooltip placement="right">
-                <template v-if="!isRepository" #title>
-                  <span class="text-12">关联知识库搜索</span>
-                </template>
-                <div
-                  :class="[isRepository ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
-                  class="ml-12 h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
-                  @click="isRepository = !isRepository"
-                >
-                  <GlobalOutlined class="m-r-4 cursor-pointer vertical-middle text-18" />
-                  <div class="pt-2 vertical-middle text-12">
-                    知识库搜索
-                  </div>
-                </div>
-              </ATooltip> -->
             </div>
 
             <div>
@@ -772,8 +735,6 @@ watch(chatTitle, () => {
 }
 
 .chat-title {
-  // min-width: 120px;
-  // max-width: 360px;
   margin: auto;
 
   :deep(.ant-input) {
