@@ -18,3 +18,17 @@ export const REDIRECT_HMD_SERVICE = {
   headers: { 'content-type': 'application/json' },
   timeout: 30000,
 }
+//注册
+export const REGISTER_SERVICE = {
+    url: `${BASE_URL}/users/register`,
+    method: "post",
+    headers: { "content-type": "application/json" },
+    timeout: 30000,
+};
+// 登录
+export const LOGIN_SERVICE = {
+    url: `${BASE_URL}/users/login`,
+    method: "post",
+    headers: { "content-type": "application/json" },
+    timeout: 30000,
+};

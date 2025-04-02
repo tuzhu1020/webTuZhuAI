@@ -3,7 +3,8 @@ import { BASE_URL } from "@/config";
 import getChatListService from "@/service/chat/getChatListService";
 
 import getUserInfoService from "@/service/user/getUserInfoService";
-
+import loginService from "@/service/user/loginService";
+import registerService from "@/service/user/registerService";
 // import redirectHmdService from '@/service/user/redirectHmdService'
 
 import { acceptHMRUpdate, defineStore } from "pinia";
@@ -81,9 +82,9 @@ export const useUserStore = defineStore(
         // 登录
         const login = async (form: LoginForm) => {
             try {
-                const res = await axios.post("/api/users/login", form);
-                setToken(res.data.token);
-                setUserInfo(res.data.user);
+                const res = await loginService(form) as any;
+                setToken(res.token);
+                setUserInfo(res.user);
                 return res.data;
             } catch (error: any) {
                 throw new Error(error.response?.data?.message || "登录失败");
@@ -93,7 +94,7 @@ export const useUserStore = defineStore(
         // 注册
         const register = async (form: RegisterForm) => {
             try {
-                const res = await axios.post("/api/users/register", form);
+                const res = await registerService(form) as any;
                 return res.data;
             } catch (error: any) {
                 throw new Error(error.response?.data?.message || "注册失败");
