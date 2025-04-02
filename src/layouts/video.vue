@@ -12,7 +12,7 @@ import NavBar from "@/components/NavBar/index.vue";
   <AConfigProvider :locale="zhCN">
     <AStyleProvider hash-priority="high" :transformers="[legacyLogicalPropertiesTransformer]">
       <div class="h-screen bg-gray-50 overflow-y-auto scrollbar-hide flex flex-col">
-        <!-- 使用封装的导航组件 -->
+        <!-- 使用导航组件 -->
         <NavBar />
 
         <!-- 页面内容 -->
