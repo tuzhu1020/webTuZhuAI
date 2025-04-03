@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useUserStore } from "@/stores/user";
 import { PARTNER_IMAGE_URLS } from "@/constant/enum";
+import ImageSlider from "@/components/ImageSlider/index.vue";
 const userStore = useUserStore();
 </script>
 
@@ -128,6 +129,18 @@ const userStore = useUserStore();
               前往视频平台
             </RouterLink>
           </div>
+        </div>
+      </div>
+    </div>
+   <!-- 合作伙伴展示 -->
+    <div class="py-16 bg-gray-50">
+      <div class=" mx-auto px-4">
+        <h2 class="text-30 font-bold text-center text-gray-800 mb-12">待合作伙伴</h2>
+        <div class="space-y-8 bg-gray-100 ">
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider1" direction="left" />
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider2" direction="right" />
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider3" direction="left" />
+          <ImageSlider :images="PARTNER_IMAGE_URLS.slider4" direction="right" />
         </div>
       </div>
     </div>

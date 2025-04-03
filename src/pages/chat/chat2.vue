@@ -291,7 +291,7 @@ function scrollToBottom() {
         >
           <ATextarea
             v-model:value="content"
-            placeholder="给 DeepSeek 发送消息" autofocus :autosize="{ minRows: 2, maxRows: 10 }"
+            placeholder="给 土猪 发送消息" autofocus :autosize="{ minRows: 2, maxRows: 10 }"
             class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!"
             @keydown.enter="sendChat"
           />

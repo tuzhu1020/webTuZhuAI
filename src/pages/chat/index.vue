@@ -97,18 +97,18 @@ function sendChat(event: any) {
     <!-- 内容 -->
     <!-- 0px 0px 0px .5px var(--dsr-input-border) -->
     <div class="flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
-      <ATextarea v-model:value="content" placeholder="给 DeepSeek 发送消息" autofocus :autoSize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="sendChat" />
+      <ATextarea v-model:value="content" placeholder="给 土猪 发送消息" autofocus :autoSize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="sendChat" />
       <div class="mt-10 w-full flex items-center justify-between">
         <div class="flex items-center justify-start">
           <ATooltip placement="left">
             <template v-if="!isThink" #title>
-              <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
+              <span class="text-12">调用新模型 土猪-思考，解决推理问题</span>
             </template>
             <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']" class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]" @click="isThink = !isThink">
               <img v-if="!isThink" src="@/assets/images/think_icon.svg" class="m-r-4 h-18 w-18 cursor-pointer">
               <img v-else src="@/assets/images/think_active_icon.svg" class="m-r-4 h-18 w-18 cursor-pointer">
               <div class="pt-2 vertical-middle text-12">
-                深度思考(R1)
+                土猪-思考
               </div>
             </div>
           </ATooltip>

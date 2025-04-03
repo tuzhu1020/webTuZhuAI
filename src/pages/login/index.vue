@@ -105,7 +105,6 @@ const handleRegister = async () => {
   }
 };
 const handleFinishFailed = (errorInfo: any) => {
-  console.log(errorInfo, "errorInfo");
 };
 // 切换登录/注册
 const toggleMode = () => {
