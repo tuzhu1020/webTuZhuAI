@@ -53,7 +53,7 @@ export default defineConfig({
                     "vue-router/auto": ["useLink"],
                 },
             ],
-            dts: "src/auto-imports.d.ts",
+            dts: true,
             dirs: ["src/composables", "src/stores"],
             vueTemplate: true,
         }),
@@ -179,5 +179,10 @@ export default defineConfig({
         rollupOptions: {
             external: ["@webcomponents/webcomponentsjs"], // 确保在构建时处理 Web Components
         },
+    },
+
+    esbuild: {
+        jsxFactory: "h",
+        jsxFragment: "Fragment",
     },
 });
