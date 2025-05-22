@@ -17,6 +17,7 @@
     "sizecheck": "npx vite-bundle-visualizer"
   },
   "dependencies": {
+    "@tweenjs/tween.js": "^25.0.0",
     "@unocss/reset": "^65.4.0",
     "@vueuse/core": "^12.4.0",
     "@vueuse/head": "^2.0.0",
@@ -29,6 +30,7 @@
     "nprogress": "^0.2.0",
     "pinia": "^2.3.0",
     "pinia-plugin-persistedstate": "^4.2.0",
+    "three": "^0.132.2",
     "vue": "^3.5.13",
     "vue-demi": "^0.14.10",
     "vue-i18n": "^11.0.1",

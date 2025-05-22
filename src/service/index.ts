@@ -22,11 +22,10 @@ function errorHandler(error: RequestError) {
     //   })
     }
     // 401 未登录/未授权
-    if (status === 401 && data.result && data.result.isLogin) {
-    //   showNotify({
-    //     type: 'danger',
-    //     message: 'Authorization verification failed',
-    //   })
+    if (status === 401) {
+      const userStore = useUserStore();
+      userStore.logout();
+      // router.push('/login')
     }
   }
 }

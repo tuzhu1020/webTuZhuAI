@@ -23,6 +23,9 @@ export default defineConfig({
             "inline-block cursor-pointer select-none opacity-75 transition duration-200 ease-in-out hover:opacity-100 hover:text-teal-600",
         ],
         ["scrollbar-hide", "overflow-auto"],
+        ["btn", "py-2 px-4 rounded cursor-pointer transition"],
+        ["btn-primary", "btn bg-teal-600 hover:bg-teal-700 text-white"],
+        ["btn-disabled", "btn bg-gray-300 cursor-not-allowed"],
     ],
     rules: [
         ["scrollbar-hide", { "scrollbar-width": "none" }],

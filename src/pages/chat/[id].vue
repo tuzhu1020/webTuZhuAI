@@ -223,7 +223,7 @@ async function sendChat() {
     scrollToBottom();
 
     // 保存用户消息
-    await saveChatRecord();
+    // await saveChatRecord();
 
     try {
       // 处理知识库搜索
