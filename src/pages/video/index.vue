@@ -207,7 +207,13 @@ const submitVideoUpload = () => {
 
 // 跳转到视频详情
 const goToVideoDetail = (videoId: number) => {
-  router.push(`/video/${videoId}`);
+  // router.push(`/video/${videoId}`);
+  router.push({
+    path: '/video/DigitalHuman',
+    query: {
+      id: videoId
+    }
+  });
 };
 
 // 搜索功能

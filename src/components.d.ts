@@ -7,6 +7,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DigitalHuman: typeof import('./components/DigitalHuman/index.vue')['default']
     ImageSlider: typeof import('./components/ImageSlider/index.vue')['default']
     MarkdownPreview: typeof import('./components/MarkdownPreview/index.vue')['default']
     NavBar: typeof import('./components/NavBar/index.vue')['default']
