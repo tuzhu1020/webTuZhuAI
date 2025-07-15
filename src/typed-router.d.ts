@@ -20,12 +20,13 @@ declare module 'vue-router/auto-routes' {
   export interface RouteNamedMap {
     '/': RouteRecordInfo<'/', '/', Record<never, never>, Record<never, never>>,
     'chat': RouteRecordInfo<'chat', '/chat', Record<never, never>, Record<never, never>>,
-    'chat-detail': RouteRecordInfo<'chat-detail', '/chat/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
+    '/chat/[id]': RouteRecordInfo<'/chat/[id]', '/chat/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     '/chat/chat2': RouteRecordInfo<'/chat/chat2', '/chat/chat2', Record<never, never>, Record<never, never>>,
     '/login/': RouteRecordInfo<'/login/', '/login', Record<never, never>, Record<never, never>>,
     '/video/': RouteRecordInfo<'/video/', '/video', Record<never, never>, Record<never, never>>,
     '/video/[id]': RouteRecordInfo<'/video/[id]', '/video/:id', { id: ParamValue<true> }, { id: ParamValue<false> }>,
     '/video/detail': RouteRecordInfo<'/video/detail', '/video/detail', Record<never, never>, Record<never, never>>,
     '/video/DigitalHuman': RouteRecordInfo<'/video/DigitalHuman', '/video/DigitalHuman', Record<never, never>, Record<never, never>>,
+    '/video/richText': RouteRecordInfo<'/video/richText', '/video/richText', Record<never, never>, Record<never, never>>,
   }
 }
