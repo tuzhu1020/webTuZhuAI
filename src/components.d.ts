@@ -7,12 +7,15 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    copy: typeof import('./components/Tinymce/index copy.vue')['default']
     DigitalHuman: typeof import('./components/DigitalHuman/index.vue')['default']
     ImageSlider: typeof import('./components/ImageSlider/index.vue')['default']
+    'Index copy': typeof import('./components/Tinymce/index copy.vue')['default']
     MarkdownPreview: typeof import('./components/MarkdownPreview/index.vue')['default']
     NavBar: typeof import('./components/NavBar/index.vue')['default']
     ParticlesClock: typeof import('./components/ParticlesClock/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    Tinymce: typeof import('./components/Tinymce/index.vue')['default']
   }
 }

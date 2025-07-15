@@ -209,7 +209,7 @@ const submitVideoUpload = () => {
 const goToVideoDetail = (videoId: number) => {
   // router.push(`/video/${videoId}`);
   router.push({
-    path: '/video/DigitalHuman',
+    path: '/video/richText',
     query: {
       id: videoId
     }

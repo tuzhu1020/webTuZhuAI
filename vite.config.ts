@@ -175,14 +175,31 @@ export default defineConfig({
     },
 
     build: {
-        sourcemap: true,
+        chunkSizeWarningLimit: 1000,
         rollupOptions: {
             external: ["@webcomponents/webcomponentsjs"], // 确保在构建时处理 Web Components
+            output: {
+                manualChunks: {
+                    'tinymce': ['tinymce/tinymce'],
+                    'vendor': ['vue', 'vue-router', 'pinia']
+                }
+            }
         },
+        assetsInlineLimit: 4096, // 小于 4kb 的资源会被内联
+        sourcemap: false,
+        minify: 'terser',
+        terserOptions: {
+            compress: {
+                drop_console: true,
+                drop_debugger: true
+            }
+        }
     },
 
     esbuild: {
         jsxFactory: "h",
         jsxFragment: "Fragment",
     },
+
+    assetsInclude: ['**/*.jpg', '**/*.png', '**/*.svg', '**/*.gif'],
 });

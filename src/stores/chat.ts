@@ -201,13 +201,13 @@ export const useChatStore = defineStore("chat", () => {
                 };
             }
 
-            // 处理内容
+            // 修正累加逻辑，确保 content 正确累加
+            if (typeof newData.choices[index].delta.content !== 'string') {
+                newData.choices[index].delta.content = "";
+            }
             if (choice.delta?.content) {
-                const curContent = newData.choices[index].delta.content || "";
-                newData.choices[index].delta.content =
-                    curContent + choice.delta.content;
-                newData.choices[index]._content =
-                    newData.choices[index].delta.content;
+                newData.choices[index].delta.content += choice.delta.content;
+                newData.choices[index]._content = newData.choices[index].delta.content;
             }
 
             // 处理推理内容（如果有）
@@ -221,6 +221,11 @@ export const useChatStore = defineStore("chat", () => {
             }
         });
 
+        // 日志：每次累加后打印 choices[0]._content
+        if (newData.choices[0]) {
+            console.log('choices[0]._content:', newData.choices[0]._content);
+        }
+
         // 更新UI属性
         newData.loading = true;
         newData.pauseing = false;
@@ -233,7 +238,7 @@ export const useChatStore = defineStore("chat", () => {
 
         // 更新会话列表中的最后一条消息
         if (chatMessageList && chatMessageList.length > 0) {
-            chatMessageList[chatMessageList.length - 1] = newData;
+            chatMessageList.splice(chatMessageList.length - 1, 1, newData);
         }
 
         // 保存最后处理的消息
@@ -281,13 +286,11 @@ export const useChatStore = defineStore("chat", () => {
 
                 // 更新最后一条消息状态
                 if (chatMessageList && chatMessageList.length > 0) {
-                    const lastMessage =
-                        chatMessageList[chatMessageList.length - 1];
+                    const lastMessage = chatMessageList[chatMessageList.length - 1];
                     if (lastMessage) {
                         lastMessage.loading = false;
                         lastMessage.pauseing = true;
-                        lastMessage.thinkTime =
-                            (Date.now() - session.startTime) / 1000;
+                        lastMessage.thinkTime = (Date.now() - session.startTime) / 1000;
                     }
                 }
 
@@ -316,8 +319,7 @@ export const useChatStore = defineStore("chat", () => {
                             console.log("接收到[DONE]标记");
                             session.isDone = true;
                             if (chatMessageList && chatMessageList.length > 0) {
-                                const lastMessage =
-                                    chatMessageList[chatMessageList.length - 1];
+                                const lastMessage = chatMessageList[chatMessageList.length - 1];
                                 if (lastMessage) {
                                     lastMessage.loading = false;
                                     lastMessage.pauseing = true;
@@ -328,30 +330,22 @@ export const useChatStore = defineStore("chat", () => {
 
                         if (chatMessageList && chatMessageList.length > 0) {
                             // 找到最后一个AI消息
-                            const lastChatItem =
-                                chatMessageList[chatMessageList.length - 1];
+                            const lastChatItem = chatMessageList[chatMessageList.length - 1];
                             if (lastChatItem?.role === AI_IDENTITY_AI_VALUE) {
                                 // 处理数据并更新UI
-                                processChunk(
-                                    data,
-                                    lastChatItem,
-                                    session,
-                                    chatMessageList,
-                                );
+                                processChunk(data, lastChatItem, session, chatMessageList);
                             } else {
                                 // 如果最后一条不是AI消息，检查是否有必要添加AI消息
-                                console.log(
-                                    "最后一条不是AI消息，检查是否需要添加AI消息",
-                                );
+                                console.log("最后一条不是AI消息，检查是否需要添加AI消息");
                                 if (session.lastChatItem) {
                                     // 如果会话中有缓存的AI消息，直接添加到聊天列表
                                     chatMessageList.push(session.lastChatItem);
-                                    processChunk(
-                                        data,
-                                        session.lastChatItem,
-                                        session,
-                                        chatMessageList,
-                                    );
+                                    processChunk(data, session.lastChatItem, session, chatMessageList);
+                                } else {
+                                    // 如果没有缓存的AI消息，创建一个新的AI消息
+                                    const newAiMessage = generatorAiChatList({});
+                                    chatMessageList.push(newAiMessage);
+                                    processChunk(data, newAiMessage, session, chatMessageList);
                                 }
                             }
                         }
@@ -369,8 +363,7 @@ export const useChatStore = defineStore("chat", () => {
                 console.error("处理会话数据失败:", error);
                 session.isDone = true;
                 if (chatMessageList && chatMessageList.length > 0) {
-                    const lastMessage =
-                        chatMessageList[chatMessageList.length - 1];
+                    const lastMessage = chatMessageList[chatMessageList.length - 1];
                     if (lastMessage) {
                         lastMessage.loading = false;
                         lastMessage.pauseing = true;
@@ -426,6 +419,24 @@ export const useChatStore = defineStore("chat", () => {
             }
         }
         return null;
+    }
+
+    // 在此处添加 generatorAiChatList 函数，供本文件内部使用
+    function generatorAiChatList(data: any) {
+        return {
+            choices: data?.choices || [],
+            role: AI_IDENTITY_AI_VALUE,
+            id: data?.id || +new Date().getTime(),
+            type: "robot",
+            loading: true,
+            pauseing: false,
+            isSpread: true,
+            thinkTime: null,
+            isThink: false,
+            isRepository: false,
+            tools: ["copy"],
+            docs: data?.docs,
+        };
     }
 
     return {
