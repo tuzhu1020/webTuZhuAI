@@ -18,7 +18,7 @@ const userStore = useUserStore();
       <div class="max-w-1280 mx-auto px-6 flex flex-col md:flex-row items-center justify-between relative z-10">
         <div class="text-center md:text-left mb-12 md:mb-0 md:w-1/2">
           <h1 class="mb-6 text-48 md:text-56 font-bold text-white leading-tight">
-            <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-200">智能 土猪AI 助手</span>
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-200">智能 土猪AI 助手nb</span>
           </h1>
           <p class="mb-8 text-18 text-blue-100 max-w-512 leading-relaxed">
             让 AI 为您的工作和学习提供智能支持，提高效率，解决问题，让每一天都更加高效
