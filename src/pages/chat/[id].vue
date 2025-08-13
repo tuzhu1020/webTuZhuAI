@@ -626,7 +626,7 @@ watch(chatTitle, () => {
       <!-- 标题 -->
       <div class="relative inline-block w-full self-center justify-center p-t-24">
         <div v-show="chatTitle || oldChatTitle" ref="titleInput" class="chat-title m-auto m-auto flex cursor-pointer overflow-hidden text-ellipsis rounded-12 p-x-12 p-y-8 text-center text-center text-nowrap text-16 font-600 tracking-widest">
-          <AInput v-model:value="chatTitle" type="text" class="m-auto border-0 text-center" size="large" placeholder="请输入标签" :maxlength="32" @focus="oldChatTitle = chatTitle" @blur="handleUpdateTitle" @input="adjustInputWidth" />
+          <AInput v-model:value="chatTitle" type="text" class="m-auto !min-w-200 border-0 text-center" size="large" placeholder="请输入标签" :maxlength="32" @focus="oldChatTitle = chatTitle" @blur="handleUpdateTitle" @input="adjustInputWidth" />
         </div>
         <div class="absolute bottom-0 z-1 h-32 w-full translate-y-[100%] from-[rgb(255,255,255)] bg-gradient-to-b opacity-70" />
       </div>
@@ -680,7 +680,7 @@ watch(chatTitle, () => {
                     </div>
                     <div class="no-think whitespace-normal lh-2em">
                       <!-- {{ cur._content }} -->
-                      <MdPreview class="p-0" :model-value="cur._content" />
+                      <MdPreview class="p-0" :model-value="cur._content"  :auto-fold-threshold="999999" />
                     </div>
                   </template>
                   <LoadingOutlined v-if="item.loading" class="m-b-24 m-t-6 cursor-not-allowed text-26 text-#909090" />
@@ -706,7 +706,7 @@ watch(chatTitle, () => {
       <!-- 发送框 -->
       <div>
         <div class="m-auto w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
-          <ATextarea v-model:value="content" placeholder="给 DeepSeek 发送消息" autofocus :autoSize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="handleEnterSendChat" />
+          <ATextarea v-model:value="content" placeholder="给 土猪  发送消息" autofocus :autoSize="{ minRows: 2, maxRows: 10 }" class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!" @keydown.enter.prevent="handleEnterSendChat" />
           <div class="mt-10 w-full flex items-center justify-between">
             <div class="flex items-center justify-start">
               <ATooltip :key="Math.random()" placement="left">

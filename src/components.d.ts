@@ -17,5 +17,6 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     Tinymce: typeof import('./components/Tinymce/index.vue')['default']
+    WpsEditor: typeof import('./components/WpsEditor/index.vue')['default']
   }
 }
