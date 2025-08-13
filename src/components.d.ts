@@ -7,11 +7,18 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AiMdPreview: typeof import('./components/AiMdPreview/index.vue')['default']
+    Chart: typeof import('./components/ECharts/Chart.vue')['default']
     copy: typeof import('./components/Tinymce/index copy.vue')['default']
     DigitalHuman: typeof import('./components/DigitalHuman/index.vue')['default']
+    ECharts: typeof import('./components/ECharts/index.vue')['default']
+    EchartsBlock: typeof import('./components/EchartsBlock/index.vue')['default']
+    EchartsView: typeof import('./components/EchartsView/index.vue')['default']
+    EChartViewer: typeof import('./components/EChartViewer/index.vue')['default']
     ImageSlider: typeof import('./components/ImageSlider/index.vue')['default']
     'Index copy': typeof import('./components/Tinymce/index copy.vue')['default']
     MarkdownPreview: typeof import('./components/MarkdownPreview/index.vue')['default']
+    MarkdownWithECharts: typeof import('./components/MarkdownWithECharts/index.vue')['default']
     NavBar: typeof import('./components/NavBar/index.vue')['default']
     ParticlesClock: typeof import('./components/ParticlesClock/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

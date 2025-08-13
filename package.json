@@ -26,6 +26,7 @@
     "axios": "^1.7.9",
     "beasties": "^0.2.0",
     "core-js": "^3.40.0",
+    "echarts": "^6.0.0",
     "marked": "^15.0.12",
     "md-editor-v3": "^5.2.3",
     "nprogress": "^0.2.0",
