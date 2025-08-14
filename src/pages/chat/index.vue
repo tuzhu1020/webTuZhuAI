@@ -28,6 +28,7 @@ function generatorMyChatList(content: string) {
   };
 }
 
+//1
 function sendChatFn() {
   loading.value = true;
   setTimeout(async () => {
