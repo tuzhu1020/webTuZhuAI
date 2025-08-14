@@ -28,7 +28,7 @@ function generatorMyChatList(content: string) {
   };
 }
 
-//1
+//2222
 function sendChatFn() {
   loading.value = true;
   setTimeout(async () => {
@@ -90,7 +90,7 @@ function sendChat(event: any) {
   <div class="m-auto max-w-800 p-x64">
     <div class="mt-46% flex items-center justify-center text-center text-24">
       <img class="mr-18 h-60 w-60" src="@/assets/images/logo.svg">
-      <div>我是土猪，很高兴见到你！</div>
+      <div>我是土猪AI，很高兴见到你！</div>
     </div>
     <div class="mb-32 mt-8 text-center text-14">
       我可以帮你写代码、读文件、写作各种创意内容，请把你的任务交给我吧~
