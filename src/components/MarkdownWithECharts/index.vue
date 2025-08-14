@@ -13,8 +13,8 @@ const containerToChart = new WeakMap<HTMLElement, echarts.ECharts>()
 let resizeObservers: ResizeObserver[] = []
 let domObserver: MutationObserver | null = null
 
-// 复用容器：按代码块文本作为 key，缓存旧容器，渲染新 DOM 时直接搬运，避免闪烁
-let codeKeyToContainers = new Map<string, HTMLElement[]>()
+// 复用包装器：按代码块文本作为 key，缓存旧 wrapper，渲染新 DOM 时直接搬运，避免闪烁
+let codeKeyToWrappers = new Map<string, HTMLElement[]>()
 
 function toEchartsOption(input: any) {
   if (!input) return null
@@ -47,12 +47,35 @@ function parseOption(code: string) {
   }
 }
 
+// 确保克隆出来的代码块含有原始代码文本与语言类名
+function ensureCodeContent(hostEl: HTMLElement, raw: string, cls: string) {
+  let code = hostEl.querySelector('pre > code') as HTMLElement | null
+  if (!code) code = hostEl.querySelector('code') as HTMLElement | null
+  if (!code) {
+    const pre = document.createElement('pre')
+    code = document.createElement('code')
+    pre.appendChild(code)
+    hostEl.appendChild(pre)
+  }
+  if (!code.className) code.className = cls || 'language-echarts'
+  // 使用 textContent，保留原始 JSON 文本
+  code.textContent = raw
+}
+
+function unhideNestedPre(hostEl: HTMLElement) {
+  hostEl.querySelectorAll<HTMLElement>('pre, code').forEach((n) => {
+    if (n.style.visibility === 'hidden') n.style.visibility = ''
+  })
+}
+
 function hideIncomingPreBlocks(root: HTMLElement) {
   const codeNodes = root.querySelectorAll<HTMLPreElement>('pre > code')
   codeNodes.forEach((codeEl) => {
+    // 跳过我们已经包装过的内容
+    if ((codeEl as HTMLElement).closest('.echarts-wrap')) return
     const cls = codeEl.className || ''
     if (/language-(echarts|chart|json)/.test(cls)) {
-      const pre = codeEl.parentElement as HTMLElement
+      const pre = (codeEl as HTMLElement).parentElement as HTMLElement
       if (pre && pre.style.visibility !== 'hidden') pre.style.visibility = 'hidden'
     }
   })
@@ -76,25 +99,63 @@ function cleanup() {
     try { domObserver.disconnect() } catch { /* noop */ }
     domObserver = null
   }
-  codeKeyToContainers.clear()
+  codeKeyToWrappers.clear()
 }
 
-function collectExistingContainers() {
-  codeKeyToContainers.clear()
+function collectExistingWrappers() {
+  codeKeyToWrappers.clear()
   if (!wrapperRef.value) return
-  wrapperRef.value.querySelectorAll<HTMLElement>('.echarts-slot').forEach((el) => {
+  wrapperRef.value.querySelectorAll<HTMLElement>('.echarts-wrap').forEach((el) => {
     const key = el.dataset.key
     if (!key) return
-    const arr = codeKeyToContainers.get(key) || []
+    const arr = codeKeyToWrappers.get(key) || []
     arr.push(el)
-    codeKeyToContainers.set(key, arr)
+    codeKeyToWrappers.set(key, arr)
   })
 }
 
-function takeReusedContainer(key: string) {
-  const arr = codeKeyToContainers.get(key)
+function takeReusedWrapper(key: string) {
+  const arr = codeKeyToWrappers.get(key)
   if (arr && arr.length) return arr.shift() as HTMLElement
   return null
+}
+
+function createToggleBar(wrapper: HTMLElement, chartContainer: HTMLElement, codePre: HTMLElement) {
+  const bar = document.createElement('div')
+  bar.className = 'echarts-toggle'
+  bar.style.display = 'flex'
+  bar.style.justifyContent = 'flex-end'
+  bar.style.marginTop = '8px'
+
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.textContent = '查看代码'
+  btn.style.cursor = 'pointer'
+  btn.style.fontSize = '12px'
+  btn.style.padding = '2px 8px'
+  btn.style.border = '1px solid #ddd'
+  btn.style.borderRadius = '6px'
+  btn.style.background = 'var(--label-bg-color, #f7f7f7)'
+
+  btn.addEventListener('click', () => {
+    const showingCode = codePre.style.display !== 'none'
+    if (showingCode) {
+      // 切回图表
+      codePre.style.display = 'none'
+      chartContainer.style.display = ''
+      const chart = containerToChart.get(chartContainer)
+      chart && chart.resize()
+      btn.textContent = '查看代码'
+    } else {
+      // 显示代码
+      chartContainer.style.display = 'none'
+      codePre.style.display = ''
+      btn.textContent = '查看图表'
+    }
+  })
+
+  bar.appendChild(btn)
+  wrapper.appendChild(bar)
 }
 
 function upgradeCodeBlocksToCharts() {
@@ -103,11 +164,13 @@ function upgradeCodeBlocksToCharts() {
   // 查找代码块（语言：echarts/chart/json）
   const codeNodes = wrapperRef.value.querySelectorAll<HTMLPreElement>('pre > code')
   codeNodes.forEach((codeEl) => {
-    const cls = codeEl.className || ''
+    // 跳过我们已经包装过的内容
+    if ((codeEl as HTMLElement).closest('.echarts-wrap')) return
+    const cls = (codeEl.className || 'language-echarts') as string
     const isTarget = /language-(echarts|chart|json)/.test(cls)
     if (!isTarget) return
 
-    const pre = codeEl.parentElement as HTMLElement
+    const pre = (codeEl as HTMLElement).parentElement as HTMLElement
     if (!pre || pre.parentElement == null) return
 
     // 已经被替换过则跳过
@@ -116,7 +179,7 @@ function upgradeCodeBlocksToCharts() {
     // 先隐藏，避免闪烁
     pre.style.visibility = 'hidden'
 
-    const raw = (codeEl.textContent || '').trim()
+    const raw = ((codeEl as HTMLElement).textContent || '').trim()
     const parsed = parseOption(raw)
     const option = toEchartsOption(parsed)
     if (!option) {
@@ -124,48 +187,79 @@ function upgradeCodeBlocksToCharts() {
       return
     }
 
-    // 复用容器（同一代码块文本复用之前的实例，避免销毁重建）
-    let container = takeReusedContainer(raw)
-    let chart: echarts.ECharts | undefined
-
-    if (!container) {
-      container = document.createElement('div') as HTMLElement
-      container.className = 'echarts-slot'
-      container.style.width = '100%'
-      container.style.height = '400px'
-      container.dataset.key = raw
-
-      chart = echarts.init(container)
-      containerToChart.set(container, chart)
-      const ro = new ResizeObserver(() => chart!.resize())
-      ro.observe(container)
-      resizeObservers.push(ro)
-    } else {
-      // 已有实例
-      chart = containerToChart.get(container)!
-    }
+    // 尝试复用 wrapper
+    let wrapper = takeReusedWrapper(raw)
 
     // 检测是否存在代码块工具栏（常作为 pre 的兄弟节点）
     const parent = pre.parentElement as HTMLElement
     const header = pre.previousElementSibling as HTMLElement | null
     const headerLooksLikeToolbar = !!header && /复制|copy|echarts/i.test(header.textContent || '')
 
+    if (!wrapper) {
+      // 构建 wrapper
+      wrapper = document.createElement('div') as HTMLElement
+      wrapper.className = 'echarts-wrap'
+      wrapper.style.width = '100%'
+      wrapper.dataset.key = raw
+
+      // 图表容器
+      const container = document.createElement('div') as HTMLElement
+      container.className = 'echarts-slot'
+      container.style.width = '100%'
+      container.style.height = '400px'
+
+      // 克隆代码块（保留样式结构：优先克隆 header+pre 的父容器）
+      let codeClone: HTMLElement
+      if (headerLooksLikeToolbar && parent) {
+        codeClone = parent.cloneNode(true) as HTMLElement
+      } else {
+        codeClone = pre.cloneNode(true) as HTMLElement
+      }
+      // 解除克隆内层 pre/code 的隐藏可见性
+      unhideNestedPre(codeClone)
+      codeClone.style.visibility = ''
+      codeClone.style.display = 'none'
+      // 确保代码文本存在
+      ensureCodeContent(codeClone, raw, cls)
+
+      // 初始化实例
+      let chart = containerToChart.get(container)
+      if (!chart) {
+        chart = echarts.init(container)
+        containerToChart.set(container, chart)
+        const ro = new ResizeObserver(() => chart!.resize())
+        ro.observe(container)
+        resizeObservers.push(ro)
+      }
+
+      wrapper.appendChild(container)
+      wrapper.appendChild(codeClone)
+      createToggleBar(wrapper, container, codeClone)
+    } else {
+      // 复用 wrapper 时也确保代码文本存在并解除隐藏
+      ensureCodeContent(wrapper, raw, cls)
+      unhideNestedPre(wrapper)
+    }
+
     // 替换目标：优先用包含 header+pre 的父容器，否则替换 pre 自身
     const replaceTarget: HTMLElement = headerLooksLikeToolbar && parent ? parent : pre
-    replaceTarget.replaceWith(container)
+    replaceTarget.replaceWith(wrapper)
 
-    chart!.setOption(option, true)
+    // 设置图表配置
+    const container = wrapper.querySelector<HTMLElement>('.echarts-slot')!
+    const chart = containerToChart.get(container)!
+    chart.setOption(option, true)
 
     // 标记升级，避免重复处理
-    container.dataset.upgraded = 'true'
+    wrapper.dataset.upgraded = 'true'
   })
 }
 
 // rAF 节流，避免流式输出频繁重排导致闪烁
 let rafId: number | null = null
 async function scheduleProcess() {
-  // 收集现有容器，准备复用
-  if (wrapperRef.value) collectExistingContainers()
+  // 收集现有 wrapper，准备复用
+  if (wrapperRef.value) collectExistingWrappers()
 
   rendered.value = props.content || ''
   await nextTick()
