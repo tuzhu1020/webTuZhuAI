@@ -727,31 +727,33 @@ watch(chatTitle, () => {
 
             <!-- 发送框 -->
             <div>
-                <div
-                    class="m-auto w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
-                    <ATextarea v-model:value="content" placeholder="给 土猪  发送消息" autofocus
-                        :autoSize="{ minRows: 2, maxRows: 10 }"
-                        class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!"
-                        @keydown.enter.prevent="handleEnterSendChat" />
-                    <div class="mt-10 w-full flex items-center justify-between">
-                        <div class="flex items-center justify-start">
-                            <ATooltip :key="Math.random()" placement="left">
-                                <template v-if="!isThink" #title>
-                                    <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
-                                </template>
-                                <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
-                                    class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
-                                    @click="isThink = !isThink">
-                                    <img v-if="!isThink" src="@/assets/images/think_icon.svg"
-                                        class="m-r-4 h-18 w-18 cursor-pointer">
-                                    <img v-else src="@/assets/images/think_active_icon.svg"
-                                        class="m-r-4 h-18 w-18 cursor-pointer">
-                                    <div class="pt-2 vertical-middle text-12">
-                                        深度思考(R1)
+                <div  class="flex">
+                    <div class="w-70"></div>
+                    <div
+                        class="m-auto w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
+                        <ATextarea v-model:value="content" placeholder="给 土猪  发送消息" autofocus
+                            :autoSize="{ minRows: 2, maxRows: 10 }"
+                            class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!"
+                            @keydown.enter.prevent="handleEnterSendChat" />
+                        <div class="mt-10 w-full flex items-center justify-between">
+                            <div class="flex items-center justify-start">
+                                <ATooltip :key="Math.random()" placement="left">
+                                    <template v-if="!isThink" #title>
+                                        <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
+                                    </template>
+                                    <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
+                                        class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
+                                        @click="isThink = !isThink">
+                                        <img v-if="!isThink" src="@/assets/images/think_icon.svg"
+                                            class="m-r-4 h-18 w-18 cursor-pointer">
+                                        <img v-else src="@/assets/images/think_active_icon.svg"
+                                            class="m-r-4 h-18 w-18 cursor-pointer">
+                                        <div class="pt-2 vertical-middle text-12">
+                                            深度思考(R1)
+                                        </div>
                                     </div>
-                                </div>
-                            </ATooltip>
-                            <!-- <ATooltip placement="right">
+                                </ATooltip>
+                                <!-- <ATooltip placement="right">
                 <template v-if="!isRepository" #title>
                   <span class="text-12">关联知识库搜索</span>
                 </template>
@@ -766,23 +768,24 @@ watch(chatTitle, () => {
                   </div>
                 </div>
               </ATooltip> -->
-                        </div>
+                            </div>
 
-                        <div>
                             <div>
-                                <ATooltip placement="top">
-                                    <template v-if="!content" #title>
-                                        <span>{{ !pauseing ? '停止生成' : '请输入你的问题' }}</span>
-                                    </template>
-                                    <div :class="[content || !pauseing ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']"
-                                        class="h-32 w-32 flex items-center justify-center rounded-50%"
-                                        @click="sendChat">
-                                        <ArrowUpOutlined v-if="!loading" class="text-#fafafa" />
-                                        <PauseOutlined v-else-if="!pauseing" class="text-#fafafa"
-                                            @click="handlePause" />
-                                        <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa" />
-                                    </div>
-                                </ATooltip>
+                                <div>
+                                    <ATooltip placement="top">
+                                        <template v-if="!content" #title>
+                                            <span>{{ !pauseing ? '停止生成' : '请输入你的问题' }}</span>
+                                        </template>
+                                        <div :class="[content || !pauseing ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']"
+                                            class="h-32 w-32 flex items-center justify-center rounded-50%"
+                                            @click="sendChat">
+                                            <ArrowUpOutlined v-if="!loading" class="text-#fafafa" />
+                                            <PauseOutlined v-else-if="!pauseing" class="text-#fafafa"
+                                                @click="handlePause" />
+                                            <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa" />
+                                        </div>
+                                    </ATooltip>
+                                </div>
                             </div>
                         </div>
                     </div>
