@@ -633,7 +633,7 @@ watch(chatTitle, () => {
 
 <template>
     <div class="h-screen w-full flex overflow-hidden">
-        <div :class="['flex flex-col overflow-hidden', runnerHtml ? 'w-[56%]' : 'w-full']">
+        <div :class="['flex flex-col overflow-hidden transition-all duration-300 ease-in-out', runnerHtml ? 'w-[56%]' : 'w-full']">
             <div class="m-auto h-screen w-full flex flex-col">
                 <!-- 标题 -->
                 <div class="relative inline-block w-full self-center justify-center p-t-24">
@@ -812,17 +812,19 @@ watch(chatTitle, () => {
         </div>
 
         <!-- 运行窗口 - 只有有内容时才显示 -->
-        <div v-if="runnerHtml"
-            class="w-[44%] h-screen overflow-hidden border-l-2 border-l-solid border-[rgba(0,0,0,0.4)] bg-white">
-            <!-- 运行窗口头部 -->
-            <div class="flex items-center justify-between p-3 border-b border-[rgba(0,0,0,.06)] bg-gray-50">
-                <div class="text-16 font-medium text-gray-700">HTML 运行结果</div>
-                <div @click="clearRunner" class="p-1 hover:bg-gray-200 rounded transition-colors" title="关闭运行窗口">
-                    <CloseOutlined class="text-[20px]" />
+        <Transition name="runner-slide">
+            <div v-if="runnerHtml"
+                class="w-[44%] h-screen overflow-hidden border-l-2 border-l-solid border-[rgba(0,0,0,0.4)] bg-white transition-all duration-300 ease-in-out">
+                <!-- 运行窗口头部 -->
+                <div class="flex items-center justify-between p-3 border-b border-[rgba(0,0,0,.06)] bg-gray-50">
+                    <div class="text-16 font-medium text-gray-700">HTML 运行结果</div>
+                    <div @click="clearRunner" class="p-1 hover:bg-gray-200 rounded transition-colors" title="关闭运行窗口">
+                        <CloseOutlined class="text-[20px]" />
+                    </div>
                 </div>
+                <HtmlRunner :html="runnerHtml" class="h-[calc(100vh-57px)]" />
             </div>
-            <HtmlRunner :html="runnerHtml" class="h-[calc(100vh-57px)]" />
-        </div>
+        </Transition>
     </div>
 </template>
 
@@ -852,6 +854,24 @@ watch(chatTitle, () => {
       border-color: #4096ff;
     }
   }
+}
+
+/* Runner 面板出现/消失动画 */
+.runner-slide-enter-from,
+.runner-slide-leave-to {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+.runner-slide-enter-active,
+.runner-slide-leave-active {
+  transition: all 0.3s ease-in-out;
+}
+
+.runner-slide-enter-to,
+.runner-slide-leave-from {
+  opacity: 1;
+  transform: translateX(0);
 }
 </style>
 
