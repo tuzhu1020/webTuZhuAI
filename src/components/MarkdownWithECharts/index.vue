@@ -4,6 +4,9 @@ import { MdPreview } from 'md-editor-v3'
 import * as echarts from 'echarts'
 
 const props = defineProps<{ content: string }>()
+const emit = defineEmits<{
+  (e: 'run-html', payload: string): void
+}>()
 
 const wrapperRef = ref<HTMLElement | null>(null)
 const rendered = ref('')
@@ -255,6 +258,142 @@ function upgradeCodeBlocksToCharts() {
   })
 }
 
+function ensureHtmlRunButtons() {
+  if (!wrapperRef.value) return
+
+  console.log('🔍 开始查找HTML代码块...')
+  
+  const codeNodes = wrapperRef.value.querySelectorAll<HTMLElement>('pre > code, code')
+  console.log(`📝 找到 ${codeNodes.length} 个代码块`)
+  
+  codeNodes.forEach((codeEl, index) => {
+    const cls = (codeEl.className || '').toLowerCase()
+    const isHtml = /language-html\b|\bhtml\b/.test(cls)
+    
+    console.log(`🔍 代码块 ${index + 1}: 语言=${cls}, 是否HTML=${isHtml}`)
+    
+    if (!isHtml) return
+
+    // 查找代码块的头部容器 - 可能是 summary 或 div
+    const pre = (codeEl as HTMLElement).closest('pre') as HTMLElement | null
+    if (!pre) {
+      console.log('❌ 未找到 pre 标签')
+      return
+    }
+    
+    console.log('🔍 pre标签:', pre)
+    console.log('🔍 pre标签的HTML:', pre.outerHTML.substring(0, 200) + '...')
+    
+    // 尝试多种方式查找代码头部
+    let codeHead = pre.querySelector('.md-editor-code-head') as HTMLElement | null
+    
+    // 如果没找到，尝试查找父级元素
+    if (!codeHead) {
+      const parent = pre.parentElement
+      if (parent) {
+        console.log('🔍 查找父级元素:', parent)
+        codeHead = parent.querySelector('.md-editor-code-head') as HTMLElement | null
+      }
+    }
+    
+    // 如果还是没找到，尝试查找兄弟元素
+    if (!codeHead) {
+      const prevSibling = pre.previousElementSibling as HTMLElement | null
+      if (prevSibling) {
+        console.log('🔍 查找前一个兄弟元素:', prevSibling)
+        if (prevSibling.classList.contains('md-editor-code-head')) {
+          codeHead = prevSibling
+        } else {
+          codeHead = prevSibling.querySelector('.md-editor-code-head') as HTMLElement | null
+        }
+      }
+    }
+    
+    if (!codeHead) {
+      console.log('❌ 未找到 .md-editor-code-head，尝试查找其他可能的容器...')
+      
+      // 尝试查找包含复制按钮的任何容器
+      const copyButton = pre.querySelector('.md-editor-copy-button') as HTMLElement | null
+      if (copyButton) {
+        console.log('✅ 直接在pre中找到复制按钮，使用pre作为容器')
+        // 直接在pre中添加运行按钮
+        addRunButtonToContainer(pre, copyButton, codeEl)
+        return
+      }
+      
+      // 查找父级中的复制按钮
+      const parentCopyButton = pre.parentElement?.querySelector('.md-editor-copy-button') as HTMLElement | null
+      if (parentCopyButton) {
+        console.log('✅ 在父级中找到复制按钮')
+        addRunButtonToContainer(parentCopyButton.parentElement!, parentCopyButton, codeEl)
+        return
+      }
+      
+      console.log('❌ 完全找不到复制按钮，无法添加运行按钮')
+      return
+    }
+    
+    console.log('✅ 找到代码头部:', codeHead)
+    
+    // 检查是否已经添加过运行按钮
+    if (codeHead.querySelector('.html-run-button')) {
+      console.log('⚠️ 运行按钮已存在，跳过')
+      return
+    }
+    
+    // 查找代码操作容器
+    const codeAction = codeHead.querySelector('.md-editor-code-action') as HTMLElement | null
+    if (!codeAction) {
+      console.log('❌ 未找到 .md-editor-code-action')
+      return
+    }
+    
+    console.log('✅ 找到代码操作容器:', codeAction)
+    
+    // 查找复制按钮
+    const copyButton = codeAction.querySelector('.md-editor-copy-button') as HTMLElement | null
+    if (!copyButton) {
+      console.log('❌ 未找到复制按钮')
+      return
+    }
+    
+    console.log('✅ 找到复制按钮:', copyButton)
+    
+    // 添加运行按钮
+    addRunButtonToContainer(codeAction, copyButton, codeEl)
+  })
+}
+
+// 辅助函数：添加运行按钮到指定容器
+function addRunButtonToContainer(container: HTMLElement, copyButton: HTMLElement, codeEl: HTMLElement) {
+  // 检查是否已经添加过运行按钮
+  if (container.querySelector('.html-run-button')) {
+    console.log('⚠️ 运行按钮已存在，跳过')
+    return
+  }
+  
+  // 创建运行按钮
+  const runBtn = document.createElement('span')
+  runBtn.className = 'html-run-button md-editor-copy-button'
+  runBtn.setAttribute('data-tips', '运行代码')
+  runBtn.textContent = '运行'
+  runBtn.style.cursor = 'pointer'
+  runBtn.style.marginLeft = '8px'
+  
+  // 添加点击事件
+  runBtn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const raw = ((codeEl as HTMLElement).textContent || '').trim()
+    if (!raw) return
+    console.log('🚀 点击运行按钮，HTML内容:', raw.substring(0, 100) + '...')
+    emit('run-html', raw)
+  })
+  
+  // 插入到复制按钮后面
+  copyButton.parentNode?.insertBefore(runBtn, copyButton.nextSibling)
+  console.log('✅ 运行按钮插入成功!')
+}
+
 // rAF 节流，避免流式输出频繁重排导致闪烁
 let rafId: number | null = null
 async function scheduleProcess() {
@@ -270,6 +409,7 @@ async function scheduleProcess() {
   if (rafId) cancelAnimationFrame(rafId)
   rafId = requestAnimationFrame(() => {
     upgradeCodeBlocksToCharts()
+    ensureHtmlRunButtons()
     rafId = null
   })
 }
@@ -290,6 +430,7 @@ onMounted(() => {
     if (!root) return
     hideIncomingPreBlocks(root)
     upgradeCodeBlocksToCharts()
+    ensureHtmlRunButtons()
   })
   if (wrapperRef.value) {
     domObserver.observe(wrapperRef.value, { childList: true, subtree: true })
@@ -306,3 +447,32 @@ onBeforeUnmount(() => {
     <MdPreview class="p-0" :model-value="rendered" :auto-fold-threshold="999999" />
   </div>
 </template>
+
+<style scoped>
+.html-run-button {
+  color: #666;
+  transition: color 0.2s ease;
+}
+
+.html-run-button:hover {
+  color: #1890ff;
+}
+
+/* 确保运行按钮和复制按钮样式一致 */
+:deep(.html-run-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+:deep(.html-run-button:hover) {
+  background-color: rgba(24, 144, 255, 0.1);
+}
+</style>

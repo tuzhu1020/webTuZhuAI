@@ -13,7 +13,7 @@ import { useUserStore } from "@/stores/user";
 import SearchResult from "@/weights/Chat/SearchResult/index.vue";
 import Tools from "@/weights/Chat/Tools/index.vue";
 import MarkdownWithECharts from "@/components/MarkdownWithECharts/index.vue";
-
+import HtmlRunner from "@/components/HtmlRunner/index.vue";  
 import {
   ArrowUpOutlined,
   DownOutlined,
@@ -22,6 +22,7 @@ import {
   RightOutlined,
   SearchOutlined,
   UpOutlined,
+    CloseOutlined
 } from "@ant-design/icons-vue";
 import {
   Input as AInput,
@@ -79,6 +80,15 @@ const oldChatTitle = ref<string>();
 const userStore = useUserStore();
 const visibleSearchResult = ref<boolean>(false);
 const searchResultData = ref<any[]>([]);
+
+const runnerHtml = ref<string>("");
+function onRunHtml(payload: string) {
+  runnerHtml.value = payload;
+}
+
+function clearRunner() {
+  runnerHtml.value = "";
+}
 
 const chatId = computed(() => route.params?.id as string);
 // const isFirstEntry = computed(() => !chatMessageList.value.length)
@@ -622,138 +632,138 @@ watch(chatTitle, () => {
 </script>
 
 <template>
-    <div class="flex flex-col overflow-hidden">
-        <div class="m-auto h-screen w-full flex flex-col">
-            <!-- 标题 -->
-            <div class="relative inline-block w-full self-center justify-center p-t-24">
-                <div v-show="chatTitle || oldChatTitle" ref="titleInput"
-                    class="chat-title m-auto m-auto flex cursor-pointer overflow-hidden text-ellipsis rounded-12 p-x-12 p-y-8 text-center text-center text-nowrap text-16 font-600 tracking-widest">
-                    <AInput v-model:value="chatTitle" type="text" class="m-auto !min-w-200 border-0 text-center"
-                        size="large" placeholder="请输入标签" :maxlength="32" @focus="oldChatTitle = chatTitle"
-                        @blur="handleUpdateTitle" @input="adjustInputWidth" />
+    <div class="h-screen w-full flex overflow-hidden">
+        <div :class="['flex flex-col overflow-hidden', runnerHtml ? 'w-[56%]' : 'w-full']">
+            <div class="m-auto h-screen w-full flex flex-col">
+                <!-- 标题 -->
+                <div class="relative inline-block w-full self-center justify-center p-t-24">
+                    <div v-show="chatTitle || oldChatTitle" ref="titleInput"
+                        class="chat-title m-auto m-auto flex cursor-pointer overflow-hidden text-ellipsis rounded-12 p-x-12 p-y-8 text-center text-center text-nowrap text-16 font-600 tracking-widest">
+                        <AInput v-model:value="chatTitle" type="text" class="m-auto !min-w-200 border-0 text-center"
+                            size="large" placeholder="请输入标签" :maxlength="32" @focus="oldChatTitle = chatTitle"
+                            @blur="handleUpdateTitle" @input="adjustInputWidth" />
+                    </div>
+                    <div
+                        class="absolute bottom-0 z-1 h-32 w-full translate-y-[100%] from-[rgb(255,255,255)] bg-gradient-to-b opacity-70" />
                 </div>
-                <div
-                    class="absolute bottom-0 z-1 h-32 w-full translate-y-[100%] from-[rgb(255,255,255)] bg-gradient-to-b opacity-70" />
-            </div>
 
-            <!-- 聊天框 -->
-            <div ref="chatContainer" class="w-full flex-1 overflow-y-auto p-b-40 p-t-42">
-                <ASpin :spinning="spinning">
-                    <div class="m-auto w-[var(--content-max-width)]">
-                        <template v-for="(item, index) in chatMessageList">
-                            <div v-if="item.type === 'my'" :key="index"
-                                class="group my m-b-16 flex justify-end whitespace-pre-wrap break-all p-b-32">
-                                <div
-                                    class="mr-12 opacity-0 transition-all duration-800 group-hover:block group-hover:opacity-100">
-                                    <Tools v-model="item.tools" @copy="handleToolsCopy(item.content)"
-                                        @edit="content = item.content" />
-                                </div>
-                                <div class="rounded-14 bg-[var(--chat-my-bg)] p-x-20 p-y-12 text-16 lh-2em">
-                                    {{ item.content }}
-                                </div>
-                            </div>
-                            <div v-else :key="item.id"
-                                :class="[index + 1 === chatMessageList.length && loading ? 'm-b-0 p-b-0' : ' m-b-16 p-b-32']"
-                                class="robot flex items-start justify-start">
-                                <div
-                                    class="m-r-16 border-width-1 border-color-#d5e4ff rounded-50% border-style-solid p-2">
-                                    <img class="h-28 w-28" src="@/assets/images/logo.svg">
-                                </div>
-                                <div class="group">
-                                    <template v-for="(cur, i) in item.choices" :key="cur.id">
-                                        <div>
-                                            <div v-if="item.isRepository">
-                                                <div :key="i"
-                                                    class="think m-b-12 flex-inline cursor-pointer items-center rounded-10 bg-[var(--chat-robot-bg)] p-x-12 p-y-8 lh-18 hover:bg-[var(--chat-robot-hover)]"
-                                                    @click="handleVisibleResult(item)">
-                                                    <SearchOutlined class="m-r-6 h-12 w-12" />
-                                                    <div class="text-12 text-[var(--text-color)]">
-                                                        已搜索到 <b>{{ item.docs?.length || 0 }}</b> 个关联知识库
-                                                    </div>
-                                                    <RightOutlined class="m-l-12 h-10 w-10 text-10" />
-                                                </div>
-                                            </div>
-
-                                            <div v-if="item.isThink">
-                                                <div :key="i"
-                                                    class="think m-b-12 flex-inline cursor-pointer items-center rounded-10 bg-[var(--chat-robot-bg)] p-x-12 p-y-8 lh-18 hover:bg-[var(--chat-robot-hover)]"
-                                                    @click="item.isSpread = !item.isSpread">
-                                                    <img class="m-r-6 h-12 w-12" src="@/assets/images/think_icon.svg">
-                                                    <div class="text-12 text-[var(--text-color)]">
-                                                        {{ item.loading ? '正在思考中...' : `已深度思考（用时${item.thinkTime}s）` }}
-                                                    </div>
-                                                    <UpOutlined v-if="item.isSpread" class="m-l-12 h-10 w-10 text-10"
-                                                        @click="item.isSpread = false" />
-                                                    <DownOutlined v-else class="m-l-12 h-10 w-10 text-10"
-                                                        @click="item.isSpread = true" />
-                                                </div>
-
-                                                <div v-if="item.isSpread" :key="i"
-                                                    class="think-content m-b-14 whitespace-pre-wrap break-all border-l-width-2 border-l-color-[var(--chat-think-border)] border-l-style-solid p-l-12">
-                                                    <p v-for="(_item, _i) in cur._thinkContent" :key="_i"
-                                                        class="m-y-1em text-14 text-[var(--chat-think-text)] lh-1.6em">
-                                                        {{ _item }}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="no-think whitespace-normal lh-2em w-[var(--content-max-width)]">
-                                            <MarkdownWithECharts :content="cur._content" />
-                                        </div>
-                                    </template>
-                                    <LoadingOutlined v-if="item.loading"
-                                        class="m-b-24 m-t-6 cursor-not-allowed text-26 text-#909090" />
-                                    <div v-if="!item.loading"
+                <!-- 聊天框 -->
+                <div ref="chatContainer" class="w-full flex-1 overflow-y-auto p-b-40 p-t-42">
+                    <ASpin :spinning="spinning">
+                        <div class="m-auto w-[var(--content-max-width)]">
+                            <template v-for="(item, index) in chatMessageList">
+                                <div v-if="item.type === 'my'" :key="index"
+                                    class="group my m-b-16 flex justify-end whitespace-pre-wrap break-all p-b-32">
+                                    <div
                                         class="mr-12 opacity-0 transition-all duration-800 group-hover:block group-hover:opacity-100">
-                                        <Tools v-model="item.tools"
-                                            @click="handleToolsCopy(item?.choices[0]?._content)" />
+                                        <Tools v-model="item.tools" @copy="handleToolsCopy(item.content)"
+                                            @edit="content = item.content" />
+                                    </div>
+                                    <div class="rounded-14 bg-[var(--chat-my-bg)] p-x-20 p-y-12 text-16 lh-2em">
+                                        {{ item.content }}
                                     </div>
                                 </div>
-                            </div>
-                        </template>
-                    </div>
+                                <div v-else :key="item.id"
+                                    :class="[index + 1 === chatMessageList.length && loading ? 'm-b-0 p-b-0' : ' m-b-16 p-b-32']"
+                                    class="robot flex items-start justify-start">
+                                    <div
+                                        class="m-r-16 border-width-1 border-color-#d5e4ff rounded-50% border-style-solid p-2">
+                                        <img class="h-28 w-28" src="@/assets/images/logo.svg">
+                                    </div>
+                                    <div class="group">
+                                        <template v-for="(cur, i) in item.choices" :key="cur.id">
+                                            <div>
+                                                <div v-if="item.isRepository">
+                                                    <div :key="i"
+                                                        class="think m-b-12 flex-inline cursor-pointer items-center rounded-10 bg-[var(--chat-robot-bg)] p-x-12 p-y-8 lh-18 hover:bg-[var(--chat-robot-hover)]"
+                                                        @click="handleVisibleResult(item)">
+                                                        <SearchOutlined class="m-r-6 h-12 w-12" />
+                                                        <div class="text-12 text-[var(--text-color)]">
+                                                            已搜索到 <b>{{ item.docs?.length || 0 }}</b> 个关联知识库
+                                                        </div>
+                                                        <RightOutlined class="m-l-12 h-10 w-10 text-10" />
+                                                    </div>
+                                                </div>
 
-                    <div v-if="chatMessageList.length && !loading" class="text-center">
-                        <div class="h-32 flex-inline cursor-pointer items-center rounded-14 bg-[var(--primary-bg-color)] p-x-10 text-center transition-all duration-600 hover:bg-[var(--button-hover)]"
-                            @click="router.push('/chat')">
-                            <img class="m-r-10 h-18 w-18" src="@/assets/images/add_new_icon.svg">
-                            <div class="text-14 color-[var(--primary-color)]">
-                                开启新对话
+                                                <div v-if="item.isThink">
+                                                    <div :key="i"
+                                                        class="think m-b-12 flex-inline cursor-pointer items-center rounded-10 bg-[var(--chat-robot-bg)] p-x-12 p-y-8 lh-18 hover:bg-[var(--chat-robot-hover)]"
+                                                        @click="item.isSpread = !item.isSpread">
+                                                        <img v-if="!isThink" src="@/assets/images/think_icon.svg"
+                                                            class="m-r-4 h-18 w-18 cursor-pointer">
+                                                        <img v-else src="@/assets/images/think_active_icon.svg"
+                                                            class="m-r-4 h-18 w-18 cursor-pointer">
+                                                        <div class="pt-2 vertical-middle text-12">
+                                                            深度思考(R1)
+                                                        </div>
+                                                    </div>
+
+                                                    <div v-if="item.isSpread" :key="i"
+                                                        class="think-content m-b-14 whitespace-pre-wrap break-all border-l-width-2 border-l-color-[var(--chat-think-border)] border-l-style-solid p-l-12">
+                                                        <p v-for="(_item, _i) in cur._thinkContent" :key="_i"
+                                                            class="m-y-1em text-14 text-[var(--chat-think-text)] lh-1.6em">
+                                                            {{ _item }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="no-think whitespace-normal lh-2em w-[var(--content-max-width)]">
+                                                <MarkdownWithECharts :content="cur._content" @run-html="onRunHtml" />
+                                            </div>
+                                        </template>
+                                        <LoadingOutlined v-if="item.loading"
+                                            class="m-b-24 m-t-6 cursor-not-allowed text-26 text-#909090" />
+                                        <div v-if="!item.loading"
+                                            class="mr-12 opacity-0 transition-all duration-800 group-hover:block group-hover:opacity-100">
+                                            <Tools v-model="item.tools"
+                                                @click="handleToolsCopy(item?.choices[0]?._content)" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div v-if="chatMessageList.length && !loading" class="text-center">
+                            <div class="h-32 flex-inline cursor-pointer items-center rounded-14 bg-[var(--primary-bg-color)] p-x-10 text-center transition-all duration-600 hover:bg-[var(--button-hover)]"
+                                @click="router.push('/chat')">
+                                <img class="m-r-10 h-18 w-18" src="@/assets/images/add_new_icon.svg">
+                                <div class="text-14 color-[var(--primary-color)]">
+                                    开启新对话
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </ASpin>
-            </div>
+                    </ASpin>
+                </div>
 
-            <!-- 发送框 -->
-            <div>
-                <div  class="flex">
-                    <div class="w-70"></div>
-                    <div
-                        class="m-auto w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
-                        <ATextarea v-model:value="content" placeholder="给 土猪  发送消息" autofocus
-                            :autoSize="{ minRows: 2, maxRows: 10 }"
-                            class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!"
-                            @keydown.enter.prevent="handleEnterSendChat" />
-                        <div class="mt-10 w-full flex items-center justify-between">
-                            <div class="flex items-center justify-start">
-                                <ATooltip :key="Math.random()" placement="left">
-                                    <template v-if="!isThink" #title>
-                                        <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
-                                    </template>
-                                    <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
-                                        class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
-                                        @click="isThink = !isThink">
-                                        <img v-if="!isThink" src="@/assets/images/think_icon.svg"
-                                            class="m-r-4 h-18 w-18 cursor-pointer">
-                                        <img v-else src="@/assets/images/think_active_icon.svg"
-                                            class="m-r-4 h-18 w-18 cursor-pointer">
-                                        <div class="pt-2 vertical-middle text-12">
-                                            深度思考(R1)
+                <!-- 发送框 -->
+                <div>
+                    <div class="flex">
+                        <div class="w-70"></div>
+                        <div
+                            class="m-auto w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
+                            <ATextarea v-model:value="content" placeholder="给 土猪  发送消息" autofocus
+                                :autoSize="{ minRows: 2, maxRows: 10 }"
+                                class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!"
+                                @keydown.enter.prevent="handleEnterSendChat" />
+                            <div class="mt-10 w-full flex items-center justify-between">
+                                <div class="flex items-center justify-start">
+                                    <ATooltip :key="Math.random()" placement="left">
+                                        <template v-if="!isThink" #title>
+                                            <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
+                                        </template>
+                                        <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
+                                            class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
+                                            @click="isThink = !isThink">
+                                            <img v-if="!isThink" src="@/assets/images/think_icon.svg"
+                                                class="m-r-4 h-18 w-18 cursor-pointer">
+                                            <img v-else src="@/assets/images/think_active_icon.svg"
+                                                class="m-r-4 h-18 w-18 cursor-pointer">
+                                            <div class="pt-2 vertical-middle text-12">
+                                                深度思考(R1)
+                                            </div>
                                         </div>
-                                    </div>
-                                </ATooltip>
-                                <!-- <ATooltip placement="right">
+                                    </ATooltip>
+                                    <!-- <ATooltip placement="right">
                 <template v-if="!isRepository" #title>
                   <span class="text-12">关联知识库搜索</span>
                 </template>
@@ -768,37 +778,51 @@ watch(chatTitle, () => {
                   </div>
                 </div>
               </ATooltip> -->
-                            </div>
+                                </div>
 
-                            <div>
                                 <div>
-                                    <ATooltip placement="top">
-                                        <template v-if="!content" #title>
-                                            <span>{{ !pauseing ? '停止生成' : '请输入你的问题' }}</span>
-                                        </template>
-                                        <div :class="[content || !pauseing ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']"
-                                            class="h-32 w-32 flex items-center justify-center rounded-50%"
-                                            @click="sendChat">
-                                            <ArrowUpOutlined v-if="!loading" class="text-#fafafa" />
-                                            <PauseOutlined v-else-if="!pauseing" class="text-#fafafa"
-                                                @click="handlePause" />
-                                            <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa" />
-                                        </div>
-                                    </ATooltip>
+                                    <div>
+                                        <ATooltip placement="top">
+                                            <template v-if="!content" #title>
+                                                <span>{{ !pauseing ? '停止生成' : '请输入你的问题' }}</span>
+                                            </template>
+                                            <div :class="[content || !pauseing ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']"
+                                                class="h-32 w-32 flex items-center justify-center rounded-50%"
+                                                @click="sendChat">
+                                                <ArrowUpOutlined v-if="!loading" class="text-#fafafa" />
+                                                <PauseOutlined v-else-if="!pauseing" class="text-#fafafa"
+                                                    @click="handlePause" />
+                                                <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa" />
+                                            </div>
+                                        </ATooltip>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <footer class="m-y-6 text-center text-12 text-[var(--text-desc-color)]">
-                    内容由 AI 生成，请仔细甄别
-                </footer>
+                    <footer class="m-y-6 text-center text-12 text-[var(--text-desc-color)]">
+                        内容由 AI 生成，请仔细甄别
+                    </footer>
+                </div>
             </div>
+
+            <SearchResult v-model:visible="visibleSearchResult" :data="searchResultData" />
+            <contextHolder />
         </div>
 
-        <SearchResult v-model:visible="visibleSearchResult" :data="searchResultData" />
-        <contextHolder />
+        <!-- 运行窗口 - 只有有内容时才显示 -->
+        <div v-if="runnerHtml"
+            class="w-[44%] h-screen overflow-hidden border-l-2 border-l-solid border-[rgba(0,0,0,0.4)] bg-white">
+            <!-- 运行窗口头部 -->
+            <div class="flex items-center justify-between p-3 border-b border-[rgba(0,0,0,.06)] bg-gray-50">
+                <div class="text-16 font-medium text-gray-700">HTML 运行结果</div>
+                <div @click="clearRunner" class="p-1 hover:bg-gray-200 rounded transition-colors" title="关闭运行窗口">
+                    <CloseOutlined class="text-[20px]" />
+                </div>
+            </div>
+            <HtmlRunner :html="runnerHtml" class="h-[calc(100vh-57px)]" />
+        </div>
     </div>
 </template>
 
