@@ -245,6 +245,14 @@ const goToVideoDetail = (videoId: string) => {
 //     }
 //   });
 };
+const handleClick = async (videoId: string) => { 
+      router.push({
+        path: '/video/richText',
+        query: {
+          id: videoId
+        }
+      });
+};
 
 // 搜索功能
 const searchKeyword = ref("");
@@ -261,174 +269,206 @@ const handleSearch = () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 py-20">
-    <div class="max-w-1200 mx-auto px-4">
-      <!-- 顶部分类栏 -->
-      <div class="bg-white rounded-xl shadow-sm p-4 mb-5">
-        <div class="flex overflow-x-auto scrollbar-hide pb-2">
-          <div v-for="category in categories" :key="category.id" @click="activeCategory = category.id" :class="{'bg-blue-500 text-white': activeCategory === category.id, 'bg-gray-100 text-gray-700': activeCategory !== category.id}" class="flex items-center px-4 py-2 rounded-full mr-3 cursor-pointer transition-colors flex-shrink-0">
-            <i :class="category.icon" class="mr-1"></i>
-            {{ category.name }}
-          </div>
-        </div>
-      </div>
-
-      <!-- 顶部功能栏 -->
-      <div class="bg-white rounded-xl shadow-sm p-4 mb-5 flex justify-between items-center flex-wrap gap-3">
-        <div class="flex space-x-4">
-          <button @click="uploadVisible = true" class="bg-pink-500 hover:bg-pink-600 text-white rounded-full px-5 py-2 transition-colors flex items-center">
-            <i class="i-tabler-upload mr-2"></i>
-            上传视频
-          </button>
-          <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-5 py-2 transition-colors flex items-center">
-            <i class="i-tabler-video mr-2"></i>
-            我的视频
-          </button>
-          <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-5 py-2 transition-colors flex items-center">
-            <i class="i-tabler-history mr-2"></i>
-            观看历史
-          </button>
-        </div>
-        <div class="w-full md:w-1/3 flex">
-          <input v-model="searchKeyword" type="text" placeholder="搜索视频..." class="w-full px-4 py-2 border border-gray-200 rounded-l-full focus:outline-none focus:ring-2 focus:ring-blue-500" @keyup.enter="handleSearch">
-          <button @click="handleSearch" class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-r-full transition-colors">
-            <i class="i-tabler-search"></i>
-          </button>
-        </div>
-      </div>
-
-      <!-- 轮播图区域 -->
-      <div class="relative bg-white rounded-xl shadow-sm overflow-hidden mb-8">
-        <div class="aspect-video overflow-hidden relative">
-          <!-- 轮播图 -->
-          <div v-for="(banner, index) in banners" :key="banner.id" :class="{ 'opacity-100': index === activeBanner, 'opacity-0': index !== activeBanner }" class="absolute inset-0 transition-opacity duration-500 ease-in-out">
-            <div class="w-full h-full bg-gray-300 flex items-center justify-center">
-              <span class="text-64">🎬</span>
+    <div class="min-h-screen bg-gray-50 py-20">
+        <div class="max-w-1200 mx-auto px-4">
+            <!-- 顶部分类栏 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-5">
+                <div class="flex overflow-x-auto scrollbar-hide pb-2">
+                    <div v-for="category in categories" :key="category.id" @click="activeCategory = category.id"
+                        :class="{'bg-blue-500 text-white': activeCategory === category.id, 'bg-gray-100 text-gray-700': activeCategory !== category.id}"
+                        class="flex items-center px-4 py-2 rounded-full mr-3 cursor-pointer transition-colors flex-shrink-0">
+                        <i :class="category.icon" class="mr-1"></i>
+                        {{ category.name }}
+                    </div>
+                </div>
             </div>
-            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-5">
-              <h3 class="text-24 md:text-32 font-bold text-white">{{ banner.title }}</h3>
-            </div>
-          </div>
 
-          <!-- 指示器 -->
-          <div class="absolute bottom-5 right-5 flex space-x-2">
-            <button v-for="(_, index) in banners" :key="index" @click="activeBanner = index" :class="{ 'bg-white': index === activeBanner, 'bg-white/50': index !== activeBanner }" class="w-8 h-2 rounded-full transition-colors"></button>
-          </div>
+            <!-- 顶部功能栏 -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-5 flex justify-between items-center flex-wrap gap-3">
+                <div class="flex space-x-4">
+                    <button @click="uploadVisible = true"
+                        class="bg-pink-500 hover:bg-pink-600 text-white rounded-full px-5 py-2 transition-colors flex items-center">
+                        <i class="i-tabler-upload mr-2"></i>
+                        上传视频
+                    </button>
+                    <button
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-5 py-2 transition-colors flex items-center">
+                        <i class="i-tabler-video mr-2"></i>
+                        我的视频
+                    </button>
+                    <button
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-5 py-2 transition-colors flex items-center">
+                        <i class="i-tabler-history mr-2"></i>
+                        观看历史
+                    </button>
+                    <button
+                        @click="handleClick('liked')"
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full px-5 py-2 transition-colors flex items-center">
+                        <i class="i-tabler-history mr-2"></i>
+                        文档助手
+                    </button>
+                </div>
+                <div class="w-full md:w-1/3 flex">
+                    <input v-model="searchKeyword" type="text" placeholder="搜索视频..."
+                        class="w-full px-4 py-2 border border-gray-200 rounded-l-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        @keyup.enter="handleSearch">
+                    <button @click="handleSearch"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-r-full transition-colors">
+                        <i class="i-tabler-search"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 轮播图区域 -->
+            <div class="relative bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+                <div class="aspect-video overflow-hidden relative">
+                    <!-- 轮播图 -->
+                    <div v-for="(banner, index) in banners" :key="banner.id"
+                        :class="{ 'opacity-100': index === activeBanner, 'opacity-0': index !== activeBanner }"
+                        class="absolute inset-0 transition-opacity duration-500 ease-in-out">
+                        <div class="w-full h-full bg-gray-300 flex items-center justify-center">
+                            <span class="text-64">🎬</span>
+                        </div>
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-5">
+                            <h3 class="text-24 md:text-32 font-bold text-white">{{ banner.title }}</h3>
+                        </div>
+                    </div>
+
+                    <!-- 指示器 -->
+                    <div class="absolute bottom-5 right-5 flex space-x-2">
+                        <button v-for="(_, index) in banners" :key="index" @click="activeBanner = index"
+                            :class="{ 'bg-white': index === activeBanner, 'bg-white/50': index !== activeBanner }"
+                            class="w-8 h-2 rounded-full transition-colors"></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 视频列表（推荐/热门） -->
+            <h2 class="text-24 font-bold mb-5 flex items-center">
+                <i v-if="activeCategory === 2" class="i-tabler-flame text-orange-500 mr-2"></i>
+                <i v-else class="i-tabler-star text-yellow-500 mr-2"></i>
+                {{ activeCategory === 2 ? '热门' : '推荐' }}
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10">
+                <div v-for="video in list" :key="video.id"
+                    class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer"
+                    @click="goToVideoDetail(video.id)">
+                    <div class="relative">
+                        <!-- 固定16:9比例容器，避免依赖插件 -->
+                        <div class="w-full bg-gray-200 overflow-hidden relative" style="padding-top:56.25%">
+                            <img v-if="video.cover || video.coverUrl" :src="withBase(video.cover || video.coverUrl)"
+                                alt="cover"
+                                class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
+                            <div v-else class="absolute inset-0 w-full h-full flex items-center justify-center text-48">
+                                🎬</div>
+                        </div>
+                        <span class="absolute bottom-2 right-2 bg-black/70 text-white text-12 px-2 py-1 rounded">{{
+                            video.duration }}</span>
+                    </div>
+                    <div class="p-3">
+                        <h3 class="text-14 font-bold text-gray-800 mb-2 line-clamp-2 h-40">{{ video.title }}</h3>
+                        <div class="flex items-center justify-between text-gray-500 text-12">
+                            <div class="flex items-center">
+                                <i class="i-tabler-eye mr-1"></i>
+                                <span>{{ video.views }}</span>
+                            </div>
+                            <span class="truncate max-w-120"><i class="i-tabler-user-circle mr-1"></i>{{ video.author
+                                }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分区视频 -->
+            <h2 class="text-24 font-bold mb-5 flex items-center">
+                <i class="i-tabler-device-laptop text-blue-500 mr-2"></i>
+                科技区
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-20">
+                <div v-for="video in list.slice(0, 5)" :key="`tech-${video.id}`"
+                    class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer"
+                    @click="goToVideoDetail(video.id)">
+                    <div class="relative">
+                        <div class="w-full bg-gray-200 overflow-hidden relative" style="padding-top:56.25%">
+                            <img v-if="video.cover" :src="video.cover" alt="cover"
+                                class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
+                            <div v-else class="absolute inset-0 w-full h-full flex items-center justify-center text-48">
+                                🎬</div>
+                        </div>
+                        <span class="absolute bottom-2 right-2 bg-black/70 text-white text-12 px-2 py-1 rounded">{{
+                            video.duration }}</span>
+                    </div>
+                    <div class="p-3">
+                        <h3 class="text-14 font-bold text-gray-800 mb-2 line-clamp-2 h-40">{{ video.title }}</h3>
+                        <div class="flex items-center justify-between text-gray-500 text-12">
+                            <div class="flex items-center">
+                                <i class="i-tabler-eye mr-1"></i>
+                                <span>{{ video.views }}</span>
+                            </div>
+                            <span class="truncate max-w-120"><i class="i-tabler-user-circle mr-1"></i>{{ video.author
+                                }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 回到顶部按钮 -->
+            <button
+                class="fixed right-5 bottom-5 bg-white p-3 rounded-full shadow-md hover:shadow-lg transition-shadow">
+                <i class="i-tabler-arrow-up text-18"></i>
+            </button>
+
+            <!-- 视频上传弹窗 -->
+            <Modal :open="uploadVisible" @update:open="(val) => uploadVisible = val" title="上传视频" okText="上传"
+                cancelText="取消" @ok="submitVideoUpload" width="600px" :confirmLoading="isUploadingVideo">
+                <div class="p-4">
+                    <div class="mb-4">
+                        <label class="block text-14 font-medium text-gray-700 mb-2">视频标题 <span
+                                class="text-red-500">*</span></label>
+                        <input v-model="uploadVideoForm.title" type="text" placeholder="请输入视频标题"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-14 font-medium text-gray-700 mb-2">视频描述</label>
+                        <textarea v-model="uploadVideoForm.description" placeholder="请输入视频描述"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            rows="4"></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-14 font-medium text-gray-700 mb-2">标签（多个标签用逗号分隔）</label>
+                        <input v-model="uploadVideoForm.tags" type="text" placeholder="如：前端,Vue,技术分享"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-14 font-medium text-gray-700 mb-2">视频封面</label>
+                        <Upload v-bind="coverProps" list-type="picture-card">
+                            <div>
+                                <i class="i-tabler-upload"></i>
+                                <div class="mt-2">上传封面</div>
+                            </div>
+                        </Upload>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-14 font-medium text-gray-700 mb-2">视频文件 <span
+                                class="text-red-500">*</span></label>
+                        <Upload v-bind="videoProps">
+                            <button class="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center">
+                                <i class="i-tabler-upload mr-2"></i>
+                                选择视频文件
+                            </button>
+                        </Upload>
+                        <div class="mt-2 text-12 text-gray-500">
+                            支持常见视频格式，单个文件大小不超过500MB
+                        </div>
+                    </div>
+                </div>
+            </Modal>
         </div>
-      </div>
-
-      <!-- 视频列表（推荐/热门） -->
-      <h2 class="text-24 font-bold mb-5 flex items-center">
-        <i v-if="activeCategory === 2" class="i-tabler-flame text-orange-500 mr-2"></i>
-        <i v-else class="i-tabler-star text-yellow-500 mr-2"></i>
-        {{ activeCategory === 2 ? '热门' : '推荐' }}
-      </h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10">
-        <div v-for="video in list" :key="video.id" class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer" @click="goToVideoDetail(video.id)">
-          <div class="relative">
-            <!-- 固定16:9比例容器，避免依赖插件 -->
-            <div class="w-full bg-gray-200 overflow-hidden relative" style="padding-top:56.25%">
-              <img v-if="video.cover || video.coverUrl"
-                   :src="withBase(video.cover || video.coverUrl)"
-                   alt="cover"
-                   class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                  />
-              <div v-else class="absolute inset-0 w-full h-full flex items-center justify-center text-48">🎬</div>
-            </div>
-            <span class="absolute bottom-2 right-2 bg-black/70 text-white text-12 px-2 py-1 rounded">{{ video.duration }}</span>
-          </div>
-          <div class="p-3">
-            <h3 class="text-14 font-bold text-gray-800 mb-2 line-clamp-2 h-40">{{ video.title }}</h3>
-            <div class="flex items-center justify-between text-gray-500 text-12">
-              <div class="flex items-center">
-                <i class="i-tabler-eye mr-1"></i>
-                <span>{{ video.views }}</span>
-              </div>
-              <span class="truncate max-w-120"><i class="i-tabler-user-circle mr-1"></i>{{ video.author }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 分区视频 -->
-      <h2 class="text-24 font-bold mb-5 flex items-center">
-        <i class="i-tabler-device-laptop text-blue-500 mr-2"></i>
-        科技区
-      </h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-20">
-        <div v-for="video in list.slice(0, 5)" :key="`tech-${video.id}`" class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer" @click="goToVideoDetail(video.id)">
-          <div class="relative">
-            <div class="w-full bg-gray-200 overflow-hidden relative" style="padding-top:56.25%">
-              <img v-if="video.cover"
-                   :src="video.cover"
-                   alt="cover"
-                   class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
-              <div v-else class="absolute inset-0 w-full h-full flex items-center justify-center text-48">🎬</div>
-            </div>
-            <span class="absolute bottom-2 right-2 bg-black/70 text-white text-12 px-2 py-1 rounded">{{ video.duration }}</span>
-          </div>
-          <div class="p-3">
-            <h3 class="text-14 font-bold text-gray-800 mb-2 line-clamp-2 h-40">{{ video.title }}</h3>
-            <div class="flex items-center justify-between text-gray-500 text-12">
-              <div class="flex items-center">
-                <i class="i-tabler-eye mr-1"></i>
-                <span>{{ video.views }}</span>
-              </div>
-              <span class="truncate max-w-120"><i class="i-tabler-user-circle mr-1"></i>{{ video.author }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 回到顶部按钮 -->
-      <button class="fixed right-5 bottom-5 bg-white p-3 rounded-full shadow-md hover:shadow-lg transition-shadow">
-        <i class="i-tabler-arrow-up text-18"></i>
-      </button>
-
-      <!-- 视频上传弹窗 -->
-      <Modal :open="uploadVisible" @update:open="(val) => uploadVisible = val" title="上传视频" okText="上传" cancelText="取消" @ok="submitVideoUpload" width="600px" :confirmLoading="isUploadingVideo">
-        <div class="p-4">
-          <div class="mb-4">
-            <label class="block text-14 font-medium text-gray-700 mb-2">视频标题 <span class="text-red-500">*</span></label>
-            <input v-model="uploadVideoForm.title" type="text" placeholder="请输入视频标题" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-14 font-medium text-gray-700 mb-2">视频描述</label>
-            <textarea v-model="uploadVideoForm.description" placeholder="请输入视频描述" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="4"></textarea>
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-14 font-medium text-gray-700 mb-2">标签（多个标签用逗号分隔）</label>
-            <input v-model="uploadVideoForm.tags" type="text" placeholder="如：前端,Vue,技术分享" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-14 font-medium text-gray-700 mb-2">视频封面</label>
-            <Upload v-bind="coverProps" list-type="picture-card">
-              <div>
-                <i class="i-tabler-upload"></i>
-                <div class="mt-2">上传封面</div>
-              </div>
-            </Upload>
-          </div>
-
-          <div class="mb-4">
-            <label class="block text-14 font-medium text-gray-700 mb-2">视频文件 <span class="text-red-500">*</span></label>
-            <Upload v-bind="videoProps">
-              <button class="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center">
-                <i class="i-tabler-upload mr-2"></i>
-                选择视频文件
-              </button>
-            </Upload>
-            <div class="mt-2 text-12 text-gray-500">
-              支持常见视频格式，单个文件大小不超过500MB
-            </div>
-          </div>
-        </div>
-      </Modal>
     </div>
-  </div>
 </template>
 
 <style scoped>
