@@ -1,0 +1,6 @@
+# pack-refs with: peeled fully-peeled sorted 
+4a2a099011333b595de7b543b86a6bc21b0488ca refs/remotes/origin/dev
+c801b67126b58345b158f899e38c777d77e94e50 refs/remotes/origin/feature-guojun-aggregation
+e5488f80df5de3d496033d68f4fd2dba3a04f12e refs/remotes/origin/master
+d83e00a3ce24230b208995ef554f08a946faf35c refs/tags/1.0.0.0
+^e5488f80df5de3d496033d68f4fd2dba3a04f12e
