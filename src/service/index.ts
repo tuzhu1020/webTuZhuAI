@@ -34,8 +34,10 @@ function errorHandler(error: RequestError) {
 function requestHandler(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig | Promise<InternalAxiosRequestConfig> {
   const store: any = useUserStore()
   const savedToken = store.token || ''
-  if (savedToken)
-    config.headers[TOKEN_KEY] = savedToken
+  if (savedToken) {
+    const hasBearer = String(savedToken).toLowerCase().startsWith('bearer ')
+    config.headers[TOKEN_KEY] = hasBearer ? savedToken : `Bearer ${savedToken}`
+  }
   return config
 }
 

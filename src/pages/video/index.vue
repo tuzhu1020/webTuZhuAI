@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from "vue";
+import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { message, Modal, Upload } from "ant-design-vue";
 import type { UploadProps } from "ant-design-vue";
 import { BASE_VIDEO_URL } from '@/config'
 import { useUserStore } from '@/stores/user'
+import { getHotVideos, getRecommendVideos, createVideo } from '@/service/videoService'
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -61,99 +62,63 @@ setInterval(() => {
   activeBanner.value = (activeBanner.value + 1) % banners.length;
 }, 5000);
 
-// 模拟视频数据
-const videos = [
-  {
-    id: 1,
-    title: "如何高效使用AI助手",
-    cover: "/video-covers/cover1.jpg",
-    duration: "10:25",
-    author: "张三",
-    views: "2.3万",
-    publishTime: "3天前",
-  },
-  {
-    id: 2,
-    title: "前端开发实用技巧分享",
-    cover: "/video-covers/cover2.jpg",
-    duration: "15:40",
-    author: "李四",
-    views: "1.8万",
-    publishTime: "1周前",
-  },
-  {
-    id: 3,
-    title: "Vue3 与 TypeScript 结合使用",
-    cover: "/video-covers/cover3.jpg",
-    duration: "20:15",
-    author: "王五",
-    views: "3.2万",
-    publishTime: "2天前",
-  },
-  {
-    id: 4,
-    title: "前端性能优化全攻略",
-    cover: "/video-covers/cover4.jpg",
-    duration: "18:30",
-    author: "赵六",
-    views: "1.5万",
-    publishTime: "5小时前",
-  },
-  {
-    id: 5,
-    title: "CSS动画实战技巧",
-    cover: "/video-covers/cover5.jpg",
-    duration: "12:45",
-    author: "钱七",
-    views: "2.7万",
-    publishTime: "昨天",
-  },
-  {
-    id: 6,
-    title: "JavaScript高级编程",
-    cover: "/video-covers/cover6.jpg",
-    duration: "25:10",
-    author: "孙八",
-    views: "4.1万",
-    publishTime: "3天前",
-  },
-  {
-    id: 7,
-    title: "React vs Vue：深度对比",
-    cover: "/video-covers/cover7.jpg",
-    duration: "30:20",
-    author: "周九",
-    views: "5.6万",
-    publishTime: "1周前",
-  },
-  {
-    id: 8,
-    title: "Web3开发入门指南",
-    cover: "/video-covers/cover8.jpg",
-    duration: "22:15",
-    author: "吴十",
-    views: "3.8万",
-    publishTime: "2天前",
-  },
-  {
-    id: 9,
-    title: "响应式设计最佳实践",
-    cover: "/video-covers/cover9.jpg",
-    duration: "15:45",
-    author: "郑十一",
-    views: "2.4万",
-    publishTime: "1天前",
-  },
-  {
-    id: 10,
-    title: "Git进阶技巧分享",
-    cover: "/video-covers/cover10.jpg",
-    duration: "18:30",
-    author: "王十二",
-    views: "3.1万",
-    publishTime: "4天前",
-  },
-];
+// 视频列表（改为接口数据）
+const list = ref<any[]>([])
+const loading = ref(false)
+const page = ref(1)
+const size = ref(20)
+const hasMore = ref(true)
+
+const fmtViews = (n?: number) => {
+  if (typeof n !== 'number') return '—'
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`
+  return String(n)
+}
+const fmtDuration = (sec?: number | string) => {
+  if (typeof sec === 'string' && sec.includes(':')) return sec
+  const s = Number(sec || 0) | 0
+  const m = Math.floor(s / 60)
+  const r = (s % 60).toString().padStart(2, '0')
+  return `${m}:${r}`
+}
+const withBase = (url?: string) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${BASE_VIDEO_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+const mapItem = (it: any) => ({
+  id: String(it._id || it.id || ''),
+  title: it.title || '未命名视频',
+  cover: withBase(it.coverUrl || it.cover),
+  duration: fmtDuration(it.duration),
+  author: it.author?.name || it.author || '匿名',
+  views: fmtViews(it.stats?.views ?? it.views),
+  publishTime: it.publishTime || it.createdAt || '',
+})
+
+const loadList = async (reset = false) => {
+  if (loading.value) return
+  loading.value = true
+  try {
+    if (reset) { page.value = 1; list.value = []; hasMore.value = true }
+    const params = { page: page.value, size: size.value }
+    const api = activeCategory.value === 2 ? getHotVideos : getRecommendVideos
+    const resp: any = await api(params)
+    const items = resp?.data?.items || resp?.data?.list || resp?.items || []
+    const mapped = items.map(mapItem)
+    list.value = reset ? mapped : [...list.value, ...mapped]
+    hasMore.value = items.length >= size.value
+    if (hasMore.value) page.value += 1
+  } catch (e) {
+    message.error('加载视频失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => loadList(true))
+watch(activeCategory, () => loadList(true))
 
 // 视频上传相关
 const uploadVisible = ref(false);
@@ -225,7 +190,7 @@ const videoProps = computed<UploadProps>(() => ({
 }));
 
 // 提交视频
-const submitVideoUpload = () => {
+const submitVideoUpload = async () => {
   if (!uploadVideoForm.title) {
     message.warning("请输入视频标题");
     return;
@@ -241,29 +206,44 @@ const submitVideoUpload = () => {
     return;
   }
 
-  // 模拟上传成功
-  message.success("视频上传成功，等待审核");
-  uploadVisible.value = false;
-
-  // 重置表单
-  Object.assign(uploadVideoForm, {
-    title: "",
-    description: "",
-    tags: "",
-    cover: "",
-    videoFile: "",
-  });
+  try {
+    const payload = {
+      title: uploadVideoForm.title,
+      description: uploadVideoForm.description || '',
+      tags: uploadVideoForm.tags ? uploadVideoForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      coverUrl: uploadVideoForm.cover || '',
+      videoUrl: uploadVideoForm.videoFile,
+      // 可选: 由前端或转码回填，这里先置0
+      duration: 0,
+    }
+    await createVideo(payload as any)
+    message.success("视频创建成功");
+    uploadVisible.value = false;
+    // 重置表单
+    Object.assign(uploadVideoForm, {
+      title: "",
+      description: "",
+      tags: "",
+      cover: "",
+      videoFile: "",
+    });
+    // 刷新列表
+    loadList(true)
+  } catch (e: any) {
+    message.error(e?.message || '创建视频失败')
+  }
 };
 
 // 跳转到视频详情
-const goToVideoDetail = (videoId: number) => {
-  // router.push(`/video/${videoId}`);
-  router.push({
-    path: '/video/richText',
-    query: {
-      id: videoId
-    }
-  });
+const goToVideoDetail = (videoId: string) => {
+  if (!videoId) return
+  router.push(`/video/${videoId}`);
+//   router.push({
+//     path: '/video/richText',
+//     query: {
+//       id: videoId
+//     }
+//   });
 };
 
 // 搜索功能
@@ -337,31 +317,34 @@ const handleSearch = () => {
         </div>
       </div>
 
-      <!-- 视频列表 -->
+      <!-- 视频列表（推荐/热门） -->
       <h2 class="text-24 font-bold mb-5 flex items-center">
-        <i class="i-tabler-flame text-orange-500 mr-2"></i>
-        热门推荐
+        <i v-if="activeCategory === 2" class="i-tabler-flame text-orange-500 mr-2"></i>
+        <i v-else class="i-tabler-star text-yellow-500 mr-2"></i>
+        {{ activeCategory === 2 ? '热门' : '推荐' }}
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10">
-        <div v-for="video in videos" :key="video.id" class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer" @click="goToVideoDetail(video.id)">
+        <div v-for="video in list" :key="video.id" class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer" @click="goToVideoDetail(video.id)">
           <div class="relative">
-            <div class="aspect-video bg-gray-200 flex items-center justify-center overflow-hidden">
-              <span class="text-64">🎬</span>
+            <!-- 固定16:9比例容器，避免依赖插件 -->
+            <div class="w-full bg-gray-200 overflow-hidden relative" style="padding-top:56.25%">
+              <img v-if="video.cover || video.coverUrl"
+                   :src="withBase(video.cover || video.coverUrl)"
+                   alt="cover"
+                   class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                  />
+              <div v-else class="absolute inset-0 w-full h-full flex items-center justify-center text-48">🎬</div>
             </div>
             <span class="absolute bottom-2 right-2 bg-black/70 text-white text-12 px-2 py-1 rounded">{{ video.duration }}</span>
           </div>
           <div class="p-3">
             <h3 class="text-14 font-bold text-gray-800 mb-2 line-clamp-2 h-40">{{ video.title }}</h3>
-            <div class="flex items-center text-gray-500 text-12 mb-2">
-              <i class="i-tabler-user-circle mr-1"></i>
-              <span>{{ video.author }}</span>
-            </div>
-            <div class="flex justify-between text-gray-500 text-12">
+            <div class="flex items-center justify-between text-gray-500 text-12">
               <div class="flex items-center">
                 <i class="i-tabler-eye mr-1"></i>
                 <span>{{ video.views }}</span>
               </div>
-              <span>{{ video.publishTime }}</span>
+              <span class="truncate max-w-120"><i class="i-tabler-user-circle mr-1"></i>{{ video.author }}</span>
             </div>
           </div>
         </div>
@@ -373,25 +356,25 @@ const handleSearch = () => {
         科技区
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-20">
-        <div v-for="video in videos.slice(0, 5)" :key="`tech-${video.id}`" class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer" @click="goToVideoDetail(video.id)">
+        <div v-for="video in list.slice(0, 5)" :key="`tech-${video.id}`" class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:-translate-y-1 cursor-pointer" @click="goToVideoDetail(video.id)">
           <div class="relative">
-            <div class="aspect-video bg-gray-200 flex items-center justify-center overflow-hidden">
-              <span class="text-64">🎬</span>
+            <div class="w-full bg-gray-200 overflow-hidden relative" style="padding-top:56.25%">
+              <img v-if="video.cover"
+                   :src="video.cover"
+                   alt="cover"
+                   class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
+              <div v-else class="absolute inset-0 w-full h-full flex items-center justify-center text-48">🎬</div>
             </div>
             <span class="absolute bottom-2 right-2 bg-black/70 text-white text-12 px-2 py-1 rounded">{{ video.duration }}</span>
           </div>
           <div class="p-3">
             <h3 class="text-14 font-bold text-gray-800 mb-2 line-clamp-2 h-40">{{ video.title }}</h3>
-            <div class="flex items-center text-gray-500 text-12 mb-2">
-              <i class="i-tabler-user-circle mr-1"></i>
-              <span>{{ video.author }}</span>
-            </div>
-            <div class="flex justify-between text-gray-500 text-12">
+            <div class="flex items-center justify-between text-gray-500 text-12">
               <div class="flex items-center">
                 <i class="i-tabler-eye mr-1"></i>
                 <span>{{ video.views }}</span>
               </div>
-              <span>{{ video.publishTime }}</span>
+              <span class="truncate max-w-120"><i class="i-tabler-user-circle mr-1"></i>{{ video.author }}</span>
             </div>
           </div>
         </div>

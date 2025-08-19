@@ -1,80 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, reactive } from "vue";
+import { ref, onMounted, reactive, watch } from "vue";
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
+import { getVideoDetail, incView } from "@/service/videoService";
+import { getDanmaku, sendDanmaku as apiSendDanmaku } from "@/service/danmakuService";
+import { BASE_VIDEO_URL } from "@/config";
 
 const route = useRoute();
-const videoId = ref(Number(route.params.id));
+const videoId = ref<string>(String((route.params as any).id || (route.query as any).id || ""));
 
-// 模拟视频详情数据
-const videoDetail = reactive({
-  id: videoId.value,
-  title: "前端开发实用技巧分享",
-  author: "李四",
-  avatar: "/default_avatar.svg",
-  views: "1.8万",
-  likes: "3.2千",
-  coins: "1.5千",
-  favorites: "849",
-  shares: "532",
-  publishTime: "2023-12-15",
-  description:
-    "本视频分享了前端开发中的实用技巧，包括Vue3+TypeScript的使用方法、性能优化技巧以及常见问题的解决方案。希望对大家的学习和工作有所帮助！",
-  tags: ["前端开发", "Vue3", "TypeScript", "性能优化"],
-});
+// 视频详情（从后端获取）
+const videoDetail = reactive<any>({});
+const videoSrc = ref("");
 
 // 弹幕相关
 const bulletScreen = ref("");
-const danmakuPool = ref([
-  {
-    id: 1,
-    text: "这个讲解太清晰了！",
-    time: 2,
-    color: "#fff",
-    size: "normal",
-    position: "scroll",
-  },
-  {
-    id: 2,
-    text: "学到了很多，感谢UP主",
-    time: 5,
-    color: "#fff",
-    size: "normal",
-    position: "scroll",
-  },
-  {
-    id: 3,
-    text: "前端开发必看教程",
-    time: 8,
-    color: "#fff",
-    size: "normal",
-    position: "scroll",
-  },
-  {
-    id: 4,
-    text: "这个技巧太有用了",
-    time: 12,
-    color: "#0f0",
-    size: "large",
-    position: "scroll",
-  },
-  {
-    id: 5,
-    text: "求更多Vue3+TS的教程",
-    time: 15,
-    color: "#fff",
-    size: "normal",
-    position: "scroll",
-  },
-  {
-    id: 6,
-    text: "收藏了！以后慢慢学习",
-    time: 20,
-    color: "#fff",
-    size: "normal",
-    position: "scroll",
-  },
-]);
+const danmakuPool = ref<any[]>([]);
 
 // 弹幕颜色选项
 const colorOptions = ref([
@@ -84,52 +25,130 @@ const colorOptions = ref([
   { value: "#0000fe", label: "蓝色" },
   { value: "#ffff00", label: "黄色" },
   { value: "#fe98ff", label: "粉色" },
-  { value: "#00ffff", label: "青色" },
 ]);
-
-// 弹幕设置
-const danmakuSettings = reactive({
-  color: "#ffffff",
-  size: "normal", // normal, small, large
-  position: "scroll", // scroll, top, bottom
-  opacity: 1,
-  fontSize: 24,
-});
 
 // 是否显示弹幕
 const showDanmaku = ref(true);
 
+// 弹幕设置（修复未定义导致的报错）
+type DanmakuSize = 'small' | 'normal' | 'large'
+type DanmakuPosition = 'scroll' | 'top' | 'bottom'
+const danmakuSettings = reactive<{ color: string; size: DanmakuSize; position: DanmakuPosition }>(
+  { color: '#ffffff', size: 'normal', position: 'scroll' }
+)
+
+// 根据大小映射像素
+const sizeToPx = (size: DanmakuSize) => {
+  if (size === 'small') return 16
+  if (size === 'large') return 28
+  return 22
+}
+
 // 播放状态
 const isPlaying = ref(false);
 const currentTime = ref(0);
-const duration = ref(180); // 假设视频长度3分钟
+const duration = ref(0);
 const videoProgress = ref(0);
+const videoRef = ref<HTMLVideoElement | null>(null);
 
-// 弹幕显示区域尺寸
+// 播放控制：音量/静音/倍速
+const volume = ref(0.7)
+const isMuted = ref(false)
+const playbackRate = ref(1.0)
+
+const applyMediaState = () => {
+  const el = videoRef.value
+  if (!el) return
+  el.muted = isMuted.value
+  el.volume = isMuted.value ? 0 : volume.value
+  el.playbackRate = playbackRate.value
+}
+
+const setVolume = (v: number) => {
+  volume.value = Math.min(1, Math.max(0, v))
+  if (volume.value > 0) isMuted.value = false
+  applyMediaState()
+}
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value
+  applyMediaState()
+}
+
+const setRate = (r: number) => {
+  playbackRate.value = r
+  applyMediaState()
+}
+
+// 进度拖拽与点击跳转
+const handleSeek = (evt: MouseEvent) => {
+  const bar = evt.currentTarget as HTMLElement
+  if (!bar || !videoRef.value || !duration.value) return
+  const rect = bar.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (evt.clientX - rect.left) / rect.width))
+  videoRef.value.currentTime = ratio * duration.value
+}
+
+// 全屏与画中画
+const enterFullscreen = () => {
+  const el: any = videoRef.value?.parentElement
+  if (!el) return
+  if (document.fullscreenElement) {
+    document.exitFullscreen?.()
+  } else {
+    el.requestFullscreen?.()
+  }
+}
+
+const enterPip = async () => {
+  const el: any = videoRef.value
+  if (!el) return
+  try {
+    if (document.pictureInPictureElement) {
+      await (document as any).exitPictureInPicture?.()
+    } else {
+      await el.requestPictureInPicture?.()
+    }
+  } catch {}
+}
+
+// 弹幕显示区域尺寸与透明度
 const danmakuContainerRef = ref(null);
+const danmakuOpacity = ref(1)
 
 // 视频控制
 const togglePlay = () => {
-  isPlaying.value = !isPlaying.value;
+  const el = videoRef.value;
+  if (!el) return;
+  if (el.paused) {
+    el.play();
+  } else {
+    el.pause();
+  }
 };
 
-// 发送弹幕
-const sendDanmaku = () => {
+// 发送弹幕（调用后端）
+const sendDanmaku = async () => {
   if (!bulletScreen.value.trim()) {
     message.warning("弹幕内容不能为空");
     return;
   }
-
-  const newDanmaku = {
-    id: danmakuPool.value.length + 1,
-    text: bulletScreen.value,
-    time: Math.floor(currentTime.value),
+  const payload = {
+    content: bulletScreen.value,
     color: danmakuSettings.color,
+    fontSize: sizeToPx(danmakuSettings.size),
+    mode: danmakuSettings.position as any,
+    time: Math.floor(currentTime.value),
+  };
+  await apiSendDanmaku(videoId.value, payload);
+  danmakuPool.value.push({
+    id: Date.now(),
+    text: payload.content,
+    time: payload.time,
+    color: payload.color,
     size: danmakuSettings.size,
     position: danmakuSettings.position,
-  };
-
-  danmakuPool.value.push(newDanmaku);
+  });
   bulletScreen.value = "";
   message.success("弹幕发送成功");
 };
@@ -139,24 +158,59 @@ const getRandomTrack = () => {
   return Math.floor(Math.random() * 15) * 30;
 };
 
-// 模拟播放进度
-onMounted(() => {
-  setInterval(() => {
-    if (isPlaying.value) {
-      currentTime.value += 0.1;
-      if (currentTime.value >= duration.value) {
-        currentTime.value = 0;
-      }
-      videoProgress.value = (currentTime.value / duration.value) * 100;
+// 将相对/绝对地址统一为可播放地址
+const withBase = (url?: string) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${BASE_VIDEO_URL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+// 初始化：拉取详情与弹幕
+onMounted(async () => {
+  try {
+    const detailResp: any = await getVideoDetail(videoId.value);
+    Object.assign(videoDetail, detailResp.data || {});
+    if (videoDetail.videoUrl) {
+      videoSrc.value = withBase(videoDetail.videoUrl);
     }
-  }, 100);
+    duration.value = Number(videoDetail.duration || 0);
+    applyMediaState()
+    // 计入播放量
+    incView(videoId.value);
+    // 首段弹幕
+    const dm: any = await getDanmaku(videoId.value, { from: 0, to: 60 });
+    const items = dm?.data?.items || [];
+    danmakuPool.value = items.map((d: any, idx: number) => ({
+      id: d._id || idx,
+      text: d.content,
+      time: d.time,
+      color: d.color || '#fff',
+      size: (d.fontSize >= 26 ? 'large' : d.fontSize <= 18 ? 'small' : 'normal'),
+      position: d.mode || 'scroll',
+    }));
+  } catch (e) {
+    // 静默失败，维持占位数据
+  }
 });
 
-// 视频相关操作
-const likeVideo = () => message.success("点赞成功");
-const coinVideo = () => message.success("投币成功");
-const favoriteVideo = () => message.success("收藏成功");
-const shareVideo = () => message.success("分享成功");
+// 当路由变化（例如从 /video/:id 跳到 /video/detail?id=...）时，更新并重新加载
+watch(
+  () => route.fullPath,
+  async () => {
+    const newId = String((route.params as any).id || (route.query as any).id || "");
+    if (newId && newId !== videoId.value) {
+      videoId.value = newId;
+      try {
+        const detailResp: any = await getVideoDetail(videoId.value);
+        Object.assign(videoDetail, detailResp.data || {});
+        if (videoDetail.videoUrl) {
+          videoSrc.value = withBase(videoDetail.videoUrl);
+        }
+        duration.value = Number(videoDetail.duration || 0);
+      } catch {}
+    }
+  }
+)
 </script>
 
 <template>
@@ -167,7 +221,11 @@ const shareVideo = () => message.success("分享成功");
         <div class="relative">
           <!-- 视频播放器 -->
           <div class="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
-            <!-- 模拟视频播放界面 -->
+            <video ref="videoRef" :src="videoSrc" class="w-full h-full object-contain" playsinline
+              @play="isPlaying = true" @pause="isPlaying = false"
+              @timeupdate="currentTime = ($event.target as HTMLVideoElement).currentTime; videoProgress = duration ? (currentTime / duration) * 100 : 0;"
+              @loadedmetadata="duration = (videoRef?.duration as any) || duration">
+            </video>
             <div v-if="!isPlaying" class="absolute inset-0 flex items-center justify-center z-10">
               <button @click="togglePlay" class="text-white bg-black/50 rounded-full p-16 hover:bg-black/70 transition-colors">
                 <i class="i-tabler-player-play text-48"></i>
@@ -175,20 +233,21 @@ const shareVideo = () => message.success("分享成功");
             </div>
 
             <!-- 弹幕显示区域 -->
-            <div v-if="showDanmaku" ref="danmakuContainerRef" class="absolute inset-0 overflow-hidden pointer-events-none">
+            <div v-if="showDanmaku" ref="danmakuContainerRef" class="absolute inset-0 overflow-hidden pointer-events-none" :style="{ opacity: danmakuOpacity }">
               <div v-for="danmaku in danmakuPool" :key="danmaku.id" :style="{
                   color: danmaku.color,
-                  top: `${getRandomTrack()}px`,
+                  top: danmaku.position === 'top' ? '8px' : danmaku.position === 'bottom' ? 'calc(100% - 36px)' : `${getRandomTrack()}px`,
+                  left: danmaku.position === 'scroll' ? 'auto' : '50%',
+                  transform: danmaku.position === 'scroll' ? 'none' : 'translateX(-50%)',
                   animationDelay: `${danmaku.time * 0.1}s`,
                   fontSize: danmaku.size === 'large' ? '28px' : danmaku.size === 'small' ? '16px' : '22px',
-                }" class="absolute whitespace-nowrap animate-danmaku">
+                }" :class="['absolute whitespace-nowrap', danmaku.position === 'scroll' ? 'animate-danmaku' : '']">
                 {{ danmaku.text }}
               </div>
             </div>
 
-            <!-- 模拟视频内容 -->
-            <span v-if="isPlaying" class="text-white text-24">视频播放中...</span>
-            <span v-else class="text-white text-24">点击播放</span>
+            <!-- 覆盖提示 -->
+            <span v-if="!videoSrc" class="text-white text-14">暂无视频源</span>
           </div>
 
           <!-- 视频控制栏 -->
@@ -198,7 +257,7 @@ const shareVideo = () => message.success("分享成功");
               <button @click="togglePlay" class="mr-2">
                 <i :class="isPlaying ? 'i-tabler-player-pause' : 'i-tabler-player-play'"></i>
               </button>
-              <div class="h-3 bg-gray-700 rounded-full flex-1 cursor-pointer">
+              <div class="h-3 bg-gray-700 rounded-full flex-1 cursor-pointer" @click="handleSeek">
                 <div class="h-full bg-red-500 rounded-full" :style="{ width: `${videoProgress}%` }"></div>
               </div>
               <span class="ml-2 text-14">{{ Math.floor(currentTime / 60) }}:{{ (Math.floor(currentTime) % 60).toString().padStart(2, '0') }} / {{ Math.floor(duration / 60) }}:{{ (duration % 60).toString().padStart(2, '0') }}</span>
@@ -207,12 +266,22 @@ const shareVideo = () => message.success("分享成功");
             <!-- 控制按钮组 -->
             <div class="flex justify-between items-center">
               <div class="flex space-x-4">
-                <button>
-                  <i class="i-tabler-volume"></i>
+                <button @click="toggleMute" :title="isMuted ? '取消静音' : '静音'">
+                  <i :class="isMuted ? 'i-tabler-volume-3-off' : 'i-tabler-volume' "></i>
                 </button>
-                <button>
-                  <i class="i-tabler-settings"></i>
-                </button>
+                <div class="flex items-center w-120">
+                  <input type="range" min="0" max="1" step="0.01" :value="isMuted ? 0 : volume" @input="setVolume(parseFloat(($event.target as HTMLInputElement).value))" />
+                </div>
+                <div class="flex items-center text-14">
+                  倍速
+                  <select class="ml-1 bg-gray-800 border border-gray-700 rounded px-1 py-0.5" :value="playbackRate" @change="setRate(parseFloat(($event.target as HTMLSelectElement).value))">
+                    <option :value="0.5">0.5x</option>
+                    <option :value="1">1.0x</option>
+                    <option :value="1.25">1.25x</option>
+                    <option :value="1.5">1.5x</option>
+                    <option :value="2">2.0x</option>
+                  </select>
+                </div>
                 <div class="flex items-center">
                   <span class="text-14 mr-2">弹幕</span>
                   <button @click="showDanmaku = !showDanmaku" class="relative">
@@ -220,17 +289,29 @@ const shareVideo = () => message.success("分享成功");
                     <div class="absolute top-1 h-16 w-16 rounded-full transition-all duration-300" :class="showDanmaku ? 'bg-blue-500 right-1' : 'bg-gray-400 left-1'"></div>
                   </button>
                 </div>
+                <div class="flex items-center ml-3" v-if="showDanmaku">
+                  <span class="text-14 mr-2">透明度</span>
+                  <input type="range" min="0" max="1" step="0.1" v-model.number="danmakuOpacity" class="w-120" />
+                </div>
               </div>
               <div>
-                <button>
+                <button @click="enterPip">
                   <i class="i-tabler-picture-in-picture"></i>
                 </button>
-                <button class="ml-3">
+                <button class="ml-3" @click="enterFullscreen">
                   <i class="i-tabler-arrows-maximize"></i>
                 </button>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 标题与数据 -->
+      <div class="bg-white rounded-xl shadow-sm p-5 mb-5">
+        <h1 class="text-22 font-bold mb-2">{{ videoDetail.title || '未命名视频' }}</h1>
+        <div class="text-gray-500 text-14">
+          {{ videoDetail.views || 0 }} 次观看 · {{ videoDetail.publishTime || '' }}
         </div>
       </div>
 
