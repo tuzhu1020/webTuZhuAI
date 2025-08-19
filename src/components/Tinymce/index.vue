@@ -65,6 +65,26 @@ function scrollToBottom() {
   })
 }
 
+// 为 TinyMCE v4 注入部分中文文案，避免语言包缺失导致英文 UI
+// tinymce.addI18n('zh_CN', {
+//   'Formats': '段落',
+//   'Font Family': '字体',
+//   'Font Sizes': '字号',
+//   'Find and replace': '查找和替换',
+//   'Find': '查找',
+//   'Replace': '替换',
+//   'Replace all': '全部替换',
+//   'Previous': '上一个',
+//   'Prev': '上一个',
+//   'Next': '下一个',
+//   'Could not find the specified string.': '未找到指定字符串。',
+//   'Match case': '区分大小写',
+//   'Whole words': '全词匹配',
+//   'Cancel': '取消',
+//   'OK': '确定',
+//   'Ok': '确定'
+// })
+
 // 将编辑器高度设置为视口高度，并在窗口尺寸变化时自适应
 function resizeEditorToViewport() {
   if (!editorInstance) return
@@ -110,25 +130,25 @@ onMounted(() => {
     // 工具栏：根据已启用插件尽量罗列常用按钮
     toolbar: [
       // 撤销/重做
-      'undo redo |',
+      'undo redo ',
       // 字体样式
-      'bold italic underline strikethrough forecolor backcolor |',
+      'bold italic underline strikethrough forecolor backcolor ',
       // 标题/段落/对齐
-      'formatselect fontselect fontsizeselect | alignleft aligncenter alignright alignjustify |',
+      'formatselect fontselect fontsizeselect  alignleft aligncenter alignright alignjustify ',
       // 列表/缩进
-      'bullist numlist outdent indent |',
+      'bullist numlist outdent indent ',
       // 链接/锚点
-      'link unlink |',
+      'link unlink ',
       // 图片/媒体/表格
-      'image media table |',
-      // 代码/块代码/查找替换
-      'code searchreplace |',
+      'image media table ',
+      // 代码/块代码/查找替换（附带自定义“查找”按钮确保全局范围）
+      'code searchreplace opensearch ',
       // 时间/字符
-      'insertdatetime charmap |',
+      'insertdatetime charmap ',
       // 预览/全屏
-      'preview fullscreen |',
+      'preview fullscreen ',
       // 自定义：清空/导入/导出 Word
-      'clearcontent | importword exportword'
+      'clearcontent  importword exportword'
     ].join(' '),
     // 菜单栏：开启并自定义顺序（移除未引入插件的相关项）
     menubar: 'file edit view insert format table', // 菜单栏显示项
@@ -248,7 +268,7 @@ onMounted(() => {
     table_default_attributes: { border: '1' }, // 默认边框
     table_default_styles: { width: '100%', borderCollapse: 'collapse' }, // 默认样式
     // 内容样式：可覆盖编辑区域默认样式
-    content_style: 'body{font-family:Microsoft YaHei,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;} pre{background:#f7f7f7;padding:10px;border-radius:6px;}',
+    content_style: 'body{font-family:Microsoft YaHei,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;} pre{background:#f7f7f7;padding:10px;border-radius:6px;} span.mce-match-marker{background:#ffe58f;color:inherit;} span.mce-match-marker-selected{background:#ffd666;outline:2px solid #fa8c16;color:inherit;}',
     // 禁止元素列表：可按需屏蔽标签（示例为空表示不禁用）
     invalid_elements: '',
     // 允许元素列表：为空表示遵循默认 schema
@@ -258,6 +278,21 @@ onMounted(() => {
     // 初始化与变更事件
     setup(editor) {
       editorInstance = editor
+      // 运行时兜底：拦截 v4 的弹窗文案，确保提示为中文
+      try {
+        const wm = editor.windowManager
+        if (wm && typeof wm.alert === 'function') {
+          const origAlert = wm.alert.bind(wm)
+          wm.alert = (text, cb, scope) => {
+            const map = {
+              'Could not find the specified string.': '未找到指定字符串。',
+              'Could not find the specified string': '未找到指定字符串。'
+            }
+            const translated = map[text] || (tinymce?.i18n?.translate ? tinymce.i18n.translate(text) : text) || text
+            return origAlert(translated, cb, scope)
+          }
+        }
+      } catch (e) { /* ignore */ }
       // 共同处理函数
       const handleImportWord = async () => {
         try {
@@ -348,6 +383,15 @@ onMounted(() => {
       editor.addButton('clearcontent', {
         text: '清空', tooltip: '清空编辑器内容', icon: false, onclick: handleClearContent
       })
+      // 自定义“查找”按钮：确保聚焦并选中全文，再打开查找替换，这样“上一个/下一个”可遍历全篇
+      editor.addButton('opensearch', {
+        text: '查找', tooltip: '查找/替换', icon: false,
+        onclick: () => {
+          editor.focus()
+          try { editor.selection.select(editor.getBody(), true) } catch (e) {}
+          editor.execCommand('mceSearchReplace')
+        }
+      })
 
       // 文件菜单项（v4）
       editor.addMenuItem('importword', { text: '导入Word(.docx)', context: 'file', onclick: handleImportWord })
@@ -385,12 +429,43 @@ onMounted(() => {
         resizeEditorToViewport()
         // 监听窗口尺寸变化，同步调整编辑器高度
         window.addEventListener('resize', resizeEditorToViewport)
+
+        // 为工具栏下拉添加中文提示（title/aria-label），解决“无提示/英文提示”的问题（v4结构）
+        try {
+          const root = editor.getContainer()
+          if (root) {
+            const listboxes = root.querySelectorAll('.mce-toolbar .mce-listbox > button')
+            // 约定顺序：formatselect, fontselect, fontsizeselect
+            const labels = ['段落', '字体', '字号']
+            listboxes.forEach((btn, i) => {
+              const label = labels[i] || btn.getAttribute('aria-label') || btn.title
+              if (label) {
+                btn.setAttribute('title', label)
+                btn.setAttribute('aria-label', label)
+              }
+            })
+            // 若存在英文 aria-label，替换为中文
+            const replaceMap = new Map([
+              ['Formats', '段落'],
+              ['Font Family', '字体'],
+              ['Font Sizes', '字号']
+            ])
+            root.querySelectorAll('.mce-toolbar .mce-listbox > button').forEach((btn) => {
+              const en = btn.getAttribute('aria-label')
+              if (en && replaceMap.has(en)) {
+                const zh = replaceMap.get(en)
+                btn.setAttribute('title', zh)
+                btn.setAttribute('aria-label', zh)
+              }
+            })
+          }
+        } catch (e) { /* ignore */ }
       })
       // 内容变化：同步 v-model 并保持滚动到底部
       editor.on('change keyup undo redo', () => {
         internalUpdating = true
         emits('update:modelValue', editor.getContent())
-        scrollToBottom()
+        // scrollToBottom()
         internalUpdating = false
       })
       // 焦点事件：可根据需要处理
@@ -498,5 +573,71 @@ onBeforeUnmount(() => {
   }
 }
 
+/* ================= 自定义 TinyMCE v4 悬停/选中样式 ================= */
+/* 工具栏按钮 hover / active */
+.edit-box :deep(.mce-toolbar .mce-btn) {
+  border-radius: 4px;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.edit-box :deep(.mce-toolbar .mce-btn:hover) {
+  background-color: #cce2fa !important;
+  border-color: #cce2fa !important;
+}
+.edit-box :deep(.mce-toolbar .mce-btn.mce-active),
+.edit-box :deep(.mce-toolbar .mce-btn:focus) {
+  background-color: #cce2fa !important;
+  border-color: #cce2fa !important;
+}
+/* 菜单项 hover / selected */
+.edit-box :deep(.mce-menu .mce-menu-item:hover),
+.edit-box :deep(.mce-menu .mce-menu-item.mce-selected),
+.edit-box :deep(.mce-menu .mce-menu-item.mce-active) {
+  background: #cce2fa !important;
+}
+/* 下拉（listbox） hover/active */
+.edit-box :deep(.mce-listbox:hover),
+.edit-box :deep(.mce-listbox.mce-active) {
+  border-color: #cce2fa !important;
+  background: #cce2fa !important;
+}
+/* listbox 打开状态也保持主题色（段落、字体、字号下拉） */
+.edit-box :deep(.mce-listbox.mce-open) {
+  border-color: #cce2fa !important;
+  background: #cce2fa !important;
+  box-shadow: 0 0 0 2px rgba(204, 226, 250, 0.35) inset;
+}
+/* 下拉按钮内文字与箭头在 hover/active 时颜色（可按需调整） */
+.edit-box :deep(.mce-listbox:hover .mce-text),
+.edit-box :deep(.mce-listbox.mce-active .mce-text),
+.edit-box :deep(.mce-listbox.mce-open .mce-text),
+.edit-box :deep(.mce-listbox:hover .mce-caret),
+.edit-box :deep(.mce-listbox.mce-active .mce-caret),
+.edit-box :deep(.mce-listbox.mce-open .mce-caret) {
+  color: #21385f !important;
+}
+/* 下拉面板中的项目 hover/selected 文字与图标颜色 */
+.edit-box :deep(.mce-menu .mce-menu-item:hover .mce-text),
+.edit-box :deep(.mce-menu .mce-menu-item.mce-selected .mce-text),
+.edit-box :deep(.mce-menu .mce-menu-item.mce-active .mce-text),
+.edit-box :deep(.mce-menu .mce-menu-item:hover .mce-ico),
+.edit-box :deep(.mce-menu .mce-menu-item.mce-selected .mce-ico),
+.edit-box :deep(.mce-menu .mce-menu-item.mce-active .mce-ico) {
+  color: #21385f !important;
+}
+
+/* ===== 关键修复：TinyMCE v4 浮层菜单渲染在 body 下，需使用全局选择器 ===== */
+:global(.mce-floatpanel.mce-menu .mce-menu-item:hover),
+:global(.mce-floatpanel.mce-menu .mce-menu-item.mce-selected),
+:global(.mce-floatpanel.mce-menu .mce-menu-item.mce-active) {
+  background: #cce2fa !important;
+}
+:global(.mce-floatpanel.mce-menu .mce-menu-item:hover .mce-text),
+:global(.mce-floatpanel.mce-menu .mce-menu-item.mce-selected .mce-text),
+:global(.mce-floatpanel.mce-menu .mce-menu-item.mce-active .mce-text),
+:global(.mce-floatpanel.mce-menu .mce-menu-item:hover .mce-ico),
+:global(.mce-floatpanel.mce-menu .mce-menu-item.mce-selected .mce-ico),
+:global(.mce-floatpanel.mce-menu .mce-menu-item.mce-active .mce-ico) {
+  color: #21385f !important;
+}
 
 </style>
