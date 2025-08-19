@@ -1,10 +1,31 @@
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, computed } from "vue";
 import { useRouter } from "vue-router";
 import { message, Modal, Upload } from "ant-design-vue";
 import type { UploadProps } from "ant-design-vue";
+import { BASE_VIDEO_URL } from '@/config'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter();
+const userStore = useUserStore();
+const token = computed(() => userStore.token);
+const uploadAction = computed(() => `${BASE_VIDEO_URL}/api/upload`);
+const uploadHeaders = computed(() => {
+  if (!token.value) return {} as Record<string, string>;
+  const hasBearer = token.value.toLowerCase().startsWith('bearer ');
+  return {
+    Authorization: hasBearer ? token.value : `Bearer ${token.value}`,
+  } as Record<string, string>;
+});
+
+const ensureLoginBeforeUpload: UploadProps['beforeUpload'] = () => {
+  if (!token.value) {
+    message.error('请先登录后再上传');
+    // 阻止加入列表并取消上传
+    return Upload.LIST_IGNORE as unknown as boolean;
+  }
+  return true;
+};
 
 // 模拟视频分类数据
 const categories = [
@@ -136,6 +157,8 @@ const videos = [
 
 // 视频上传相关
 const uploadVisible = ref(false);
+const isUploadingCover = ref(false);
+const isUploadingVideo = ref(false);
 
 const uploadVideoForm = reactive({
   title: "",
@@ -145,44 +168,71 @@ const uploadVideoForm = reactive({
   videoFile: "",
 });
 
-// 上传视频封面
-const coverProps: UploadProps = {
-  name: "file",
-  action: "https://api.example.com/upload",
-  headers: {
-    authorization: "authorization-text",
-  },
+// 上传视频封面（响应式 props）
+const coverProps = computed<UploadProps>(() => ({
+  name: 'file',
+  action: uploadAction.value,
+  headers: uploadHeaders.value,
+  accept: 'image/*',
+  beforeUpload: ensureLoginBeforeUpload,
   onChange(info) {
-    if (info.file.status === "done") {
-      uploadVideoForm.cover = (info.file.response as { url: string }).url;
+    if (info.file.status === 'uploading') {
+      isUploadingCover.value = true;
+    } else if (info.file.status === 'done') {
+      // 兼容两种返回：
+      // 1) 直接 { data: { url } }
+      // 2) 统一包装 { code:'200', data: { status:'success', data:{ url } }, message }
+      const resp = info.file.response as any;
+      const coverUrl = resp?.data?.url || resp?.data?.data?.url || resp?.url || '';
+      uploadVideoForm.cover = coverUrl;
       message.success(`${info.file.name} 上传成功`);
-    } else if (info.file.status === "error") {
-      message.error(`${info.file.name} 上传失败`);
+      isUploadingCover.value = false;
+    } else if (info.file.status === 'error') {
+      const errMsg = (info.file?.response?.message) || '上传失败';
+      message.error(`${info.file.name} ${errMsg}`);
+      isUploadingCover.value = false;
     }
   },
-};
+}));
 
-// 上传视频文件
-const videoProps: UploadProps = {
-  name: "file",
-  action: "https://api.example.com/upload",
-  headers: {
-    authorization: "authorization-text",
-  },
+// 上传视频文件（响应式 props）
+const videoProps = computed<UploadProps>(() => ({
+  name: 'file',
+  action: uploadAction.value,
+  headers: uploadHeaders.value,
+  accept: 'video/*',
+  maxCount: 1,
+  beforeUpload: ensureLoginBeforeUpload,
   onChange(info) {
-    if (info.file.status === "done") {
-      uploadVideoForm.videoFile = (info.file.response as { url: string }).url;
+    if (info.file.status === 'uploading') {
+      isUploadingVideo.value = true;
+    } else if (info.file.status === 'done') {
+      const resp = info.file.response as any;
+      const videoUrl = resp?.data?.url || resp?.data?.data?.url || resp?.url || '';
+      uploadVideoForm.videoFile = videoUrl;
       message.success(`${info.file.name} 上传成功`);
-    } else if (info.file.status === "error") {
-      message.error(`${info.file.name} 上传失败`);
+      isUploadingVideo.value = false;
+    } else if (info.file.status === 'error') {
+      const errMsg = (info.file?.response?.message) || '上传失败';
+      message.error(`${info.file.name} ${errMsg}`);
+      isUploadingVideo.value = false;
+    } else if (info.file.status === 'removed') {
+      // 清理表单绑定，避免残留导致误提交
+      uploadVideoForm.videoFile = '';
+      isUploadingVideo.value = false;
     }
   },
-};
+}));
 
 // 提交视频
 const submitVideoUpload = () => {
   if (!uploadVideoForm.title) {
     message.warning("请输入视频标题");
+    return;
+  }
+
+  if (isUploadingVideo.value) {
+    message.warning("视频正在上传，请稍候");
     return;
   }
 
@@ -353,7 +403,7 @@ const handleSearch = () => {
       </button>
 
       <!-- 视频上传弹窗 -->
-      <Modal :open="uploadVisible" @update:open="(val) => uploadVisible = val" title="上传视频" okText="上传" cancelText="取消" @ok="submitVideoUpload" width="600px">
+      <Modal :open="uploadVisible" @update:open="(val) => uploadVisible = val" title="上传视频" okText="上传" cancelText="取消" @ok="submitVideoUpload" width="600px" :confirmLoading="isUploadingVideo">
         <div class="p-4">
           <div class="mb-4">
             <label class="block text-14 font-medium text-gray-700 mb-2">视频标题 <span class="text-red-500">*</span></label>

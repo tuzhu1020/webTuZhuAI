@@ -2,6 +2,7 @@
 export const BASE_URL = import.meta.env.VITE_APP_PROXY_PATH
 export const BASE_URL_CRM = import.meta.env.VITE_APP_CRM_PROXY_PATH
 export const AI_BASE_URL = import.meta.env.VITE_APP_AI_PROXY_PATH
+export const BASE_VIDEO_URL = import.meta.env.VITE_APP_VIDEO_API_URL
 
 // 接口版本号
 export const API_VERSION = '1.0.0'
