@@ -1,25 +1,25 @@
 <template>
-  <div class="w-full h-full bg-[#f5f7fb]">
+  <div class="w-full h-screen bg-[#f5f7fb]">
     <!-- Top spacer to look airy like the design -->
     <div class="px-[16px] pt-[12px] pb-[12px]">
       <div class="text-[16px] text-[#99a1b2]">无标题文11档</div>
     </div>
 
     <!-- Main three-column layout -->
-    <div class="flex items-start gap-[12px] px-[12px] pb-[12px]">
+    <div class="flex  items-start gap-[12px] px-[12px] pb-[12px]">
       <!-- Left: Rich Text Editor Card -->
-      <div class="flex-1 min-w-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5]">
-        <div class="px-[12px] py-[10px] border-b border-[#eef0f5] flex items-center gap-[10px]">
+      <div class="flex-1 h-[calc(100vh-48px)] min-w-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5] flex flex-col">
+        <div class="px-[12px] py-[10px] border-b border-[#eef0f5] flex items-center gap-[10px] shrink-0">
           <div class="i-carbon-text-font text-[18px] text-[#606a78]" />
           <div class="text-[14px] text-[#606a78]">正文编辑</div>
         </div>
-        <div class="px-[12px] py-[12px]">
-          <!-- Tinymce editor, height matches visual proportion -->
-          <Tinymce v-model="richText" :init="tinymceInit" />
+        <div class="px-[12px] py-[12px] flex-1 min-h-0">
+          <!-- Tinymce editor fills available height; internal content scrolls -->
+          <Tinymce v-model="richText" class="h-full" :height="'100%'"  />
         </div>
-        <div class="px-[12px] py-[8px] text-[#99a1b2] text-[12px] border-t border-[#eef0f5]">
+        <!-- <div class="px-[12px] py-[8px] text-[#99a1b2] text-[12px] border-t border-[#eef0f5] shrink-0">
           以上内容由您创作，仅供参考
-        </div>
+        </div> -->
       </div>
 
       <!-- Middle: AI Panel -->
@@ -142,20 +142,19 @@ import { ref, defineComponent, h } from 'vue';
 const richText = ref('');
 
 // TinyMCE 自托管初始化（本地开发不校验 key，不加载云端插件）
-const tinymceInit = {
-  height: 520,
-  menubar: true,
-  // 自托管路径（对应 public/tinymce/）
-  base_url: '/tinymce',
-  suffix: '.min',
-  language: 'zh_CN',
-  language_url: '/tinymce/tinymce-i18n/langs8/zh_CN.js',
-  license_key: 'gpl',
-  api_key: null,
-  toolbar:
-    'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image link table code | removeformat',
-  plugins: 'lists link image table code',
-};
+// const tinymceInit = {
+//   height: 520,
+//   menubar: true,
+//   // 自托管路径（对应 public/tinymce/）
+//   base_url: '/tinymce',
+//   suffix: '.min',
+//   language: 'zh_CN',
+//   language_url: '/tinymce/tinymce-i18n/langs8/zh_CN.js',
+//   api_key: null,
+//   toolbar:
+//     'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image link table code | removeformat',
+//   plugins: 'lists link image table code',
+// };
 
 // AI Panel state
 const tip = ref('');
