@@ -193,7 +193,9 @@ export default defineConfig({
                 drop_console: true,
                 drop_debugger: true
             }
-        }
+        },
+        // 复制 TinyMCE 资源文件
+        copyPublicDir: true
     },
 
     esbuild: {

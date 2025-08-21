@@ -141,12 +141,19 @@ import { ref, defineComponent, h } from 'vue';
 // Tinymce 组件已全局自动引入，无需手动import
 const richText = ref('');
 
-// TinyMCE init for height and minimal plugins to resemble toolbar in screenshot
+// TinyMCE 自托管初始化（本地开发不校验 key，不加载云端插件）
 const tinymceInit = {
   height: 520,
   menubar: true,
+  // 自托管路径（对应 public/tinymce/）
+  base_url: '/tinymce',
+  suffix: '.min',
+  language: 'zh_CN',
+  language_url: '/tinymce/tinymce-i18n/langs8/zh_CN.js',
+  license_key: 'gpl',
+  api_key: null,
   toolbar:
-    'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image link table | removeformat',
+    'undo redo | blocks fontfamily fontsize | bold italic underline forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image link table code | removeformat',
   plugins: 'lists link image table code',
 };
 
