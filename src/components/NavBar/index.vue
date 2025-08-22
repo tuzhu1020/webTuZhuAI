@@ -38,6 +38,9 @@ async function onLogout() {
                         <RouterLink to="/video"
                             class="rounded-full bg-gradient-to-r from-blue-500 to-purple-500 p-10 text-white transition-all duration-300 hover:shadow-lg hover:scale-105 no-underline">
                             视频平台</RouterLink>
+                        <RouterLink to="/richText"
+                            class="rounded-full bg-gradient-to-r from-blue-500 to-purple-500 p-10 text-white transition-all duration-300 hover:shadow-lg hover:scale-105 no-underline">
+                            智能写作</RouterLink>
                     </div>
                 </div>
                 <div class="flex items-center space-x-4">

@@ -1,15 +1,15 @@
 <template>
-    <div class="w-full h-screen bg-[#f5f7fb]">
+    <div class="w-full h-[calc(100vh-100px)] bg-[#f5f7fb]">
         <!-- Top spacer to look airy like the design -->
-        <div class="px-[16px] pt-[12px] pb-[12px]">
+        <!-- <div class="px-[16px] pt-[12px] pb-[12px]">
             <div class="text-[16px] text-[#99a1b2]">无标题文11档</div>
-        </div>
+        </div> -->
 
         <!-- Main three-column layout -->
-        <div class="flex  items-start gap-[12px] px-[12px] pb-[12px]">
+        <div class="flex flex-1 mt-10  items-start gap-[12px] px-[12px] pb-[12px]">
             <!-- Left: Rich Text Editor Card -->
             <div
-                class="flex-1 h-[calc(100vh-48px)] min-w-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5] flex flex-col">
+                class="flex-1 h-[calc(100vh-120px)] min-w-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5] flex flex-col">
                 <div class="px-[12px] py-[10px] border-b border-[#eef0f5] flex items-center gap-[10px] shrink-0">
                     <div class="i-carbon-text-font text-[18px] text-[#606a78]" />
                     <div class="text-[14px] text-[#606a78]">正文编辑</div>
@@ -25,7 +25,7 @@
 
             <!-- Middle: AI Panel -->
             <div
-                class="w-[360px] h-[calc(100vh-48px)] flex flex-col  shrink-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5]">
+                class="w-[360px] h-[calc(100vh-120px)] flex flex-col  shrink-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5]">
                 <!-- Header segmented options -->
                 <div class="px-[12px] pt-[12px] pb-[8px] border-b border-[#eef0f5]">
                     <div class="flex items-center justify-between">
@@ -54,8 +54,7 @@
                     <!-- 深度思考：展示 reasoning_content 的增量行 -->
                     <div v-if="auto && chatMessageList.length" class="mt-[8px] flex-1 min-h-0 flex flex-col">
                         <div class="text-[12px] text-[#334155] mb-[6px]">思考过程</div>
-                        <div
-                            ref="thinkRef"
+                        <div ref="thinkRef"
                             class="flex-1 min-h-0 overflow-y-auto rounded-[6px] border border-[#e5e7eb] p-[8px]  text-[12px] text-[#64748b] bg-[#fafafa]">
                             <p v-for="(line, idx) in (chatMessageList[chatMessageList.length-1]?.choices?.[0]?._thinkContent || [])"
                                 :key="idx" class="leading-[1.6] whitespace-pre-wrap ">{{ line }}</p>
@@ -96,7 +95,7 @@
 
             <!-- Right: Slim Menu -->
             <div
-                class="w-[72px] h-[calc(100vh-48px)]  shrink-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5] flex flex-col items-center py-[10px] gap-[6px]">
+                class="w-[72px] h-[calc(100vh-120px)]  shrink-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5] flex flex-col items-center py-[10px] gap-[6px]">
                 <MenuItem label="提纲" />
             </div>
         </div>
@@ -134,6 +133,8 @@ const input = ref('');
 const auto = ref(false);
 const mode = ref<'write' | 'polish'>('write');
 const sending = ref(false);
+// 写作/润色风格（传入 buildAIMessages 的第二个参数）
+const style = ref<'学术' | '公文' | '日常' | '网络' | '科普' | '文学' | '中性正式'>('中性正式');
 // 用于接收 SSE 增量（含 reasoning_content）
 const chatMessageList = ref<any[]>([]);
 
@@ -155,89 +156,130 @@ function mdToHtml(markdown: string) {
   return marked.parse(markdown) as string;
 }
 
-function buildSystemPrompt() {
-  return (
-    '你是一个中文写作助手。' +
-    '请严格输出「纯 Markdown 文本」，不要使用任何代码围栏（如 ``` 或 ~~~），也不要附加解释。' +
-    '结构清晰，允许使用标题（#）、小结、列表、加粗/斜体/链接等标准 Markdown 语法。' +
-    '当我要求润色时，请在保持语义不变的前提下优化表达；当我要求写作时，请按要求创作。'
-  );
+// function buildSystemPrompt() {
+//   return (
+//     '你是一个中文写作助手。' +
+//     '请严格输出「纯 Markdown 文本」，不要使用任何代码围栏（如 ``` 或 ~~~），也不要附加解释。' +
+//     '结构清晰，允许使用标题（#）、小结、列表、加粗/斜体/链接等标准 Markdown 语法。' +
+//     '当我要求润色时，请在保持语义不变的前提下优化表达；当我要求写作时，请按要求创作。'
+//   );
+// }
+
+// function buildUserPrompt() {
+//   const reqs = requires.value.filter(r => r.checked).map(r => r.label).join('、');
+//   const lenMap: Record<string, string> = { short: '简短', mid: '适中', long: '较长' };
+//   if (mode.value === 'polish') {
+//     return `请对以下内容进行智能润色，保持原始含义，优化逻辑、语法与用词，可适度调整结构；输出为「纯 Markdown」（不要使用代码块围栏）：\n\n${richText.value}`;
+//   }
+//   // 写作模式
+//   return (
+//     `请根据以下意图生成一段${lenMap[len.value]}篇幅的中文内容，满足要求，并输出为「纯 Markdown」（不要使用代码块围栏）：\n` +
+//     `意图：${tip.value || input.value}\n` +
+//     `要求：${reqs || '结构清晰、简洁明了、无错别字'}\n` +
+//     `受众：通用读者。`
+//   );
+// }
+const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学', '中性正式'];
+
+/**
+ * 构建 AI 消息体
+ */
+function buildAIMessages(
+    text: string,
+    style: string = '中性正式',
+    mode: 'polish' | 'write' = 'polish',
+    options: { len?: 'short' | 'mid' | 'long'; requires?: string[] } = {}
+) {
+    const selectedStyle = allowedStyles.includes(style) ? style : '中性正式';
+    const lenMap: Record<string, string> = { short: '简短', mid: '适中', long: '较长' };
+    const reqs = options.requires && options.requires.length ? options.requires.join('、') : '结构清晰、简洁明了、无错别字';
+
+    const systemPrompt = `
+你是一个中文写作助手。
+请严格输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~），不要附加解释或多余文字。
+保留 Markdown 标准语法，包括标题（#）、小结、列表、加粗、斜体、链接等，同时保持结构清晰。
+当用户要求润色时，请在保持语义不变的前提下优化逻辑、语法与用词，可适度调整结构；
+当用户要求写作时，请根据提示内容创作完整中文文本，逻辑清晰、条理分明，可自动生成标题和小节结构，每段尽量围绕一个核心观点。
+可根据 style 参数选择风格：学术、公文、日常、网络、科普、文学、中性正式（默认）。
+`;
+
+    let userPrompt = '';
+    if (mode === 'polish') {
+        userPrompt = `请以「${selectedStyle}」风格对以下内容进行智能润色，保持原始含义，优化逻辑、语法与用词，可适度调整结构；输出为「纯 Markdown 文本」，禁止使用代码块围栏，不要附加解释或说明：\n\n${text}`;
+    } else if (mode === 'write') {
+        userPrompt = `请以「${selectedStyle}」风格，根据以下意图生成一段${lenMap[options.len || 'mid']}篇幅的中文内容，逻辑清晰、条理分明；自动生成标题和小节，每段围绕一个核心观点；输出为「纯 Markdown 文本」，禁止使用代码块围栏，不要附加解释或说明：\n` +
+            `意图：${text}\n` +
+            `要求：${reqs}\n` +
+            `受众：通用读者。`;
+    }
+
+    return [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+    ];
 }
 
-function buildUserPrompt() {
-  const reqs = requires.value.filter(r => r.checked).map(r => r.label).join('、');
-  const lenMap: Record<string, string> = { short: '简短', mid: '适中', long: '较长' };
-  if (mode.value === 'polish') {
-    return `请对以下内容进行智能润色，保持原始含义，优化逻辑、语法与用词，可适度调整结构；输出为「纯 Markdown」（不要使用代码块围栏）：\n\n${richText.value}`;
-  }
-  // 写作模式
-  return (
-    `请根据以下意图生成一段${lenMap[len.value]}篇幅的中文内容，满足要求，并输出为「纯 Markdown」（不要使用代码块围栏）：\n` +
-    `意图：${tip.value || input.value}\n` +
-    `要求：${reqs || '结构清晰、简洁明了、无错别字'}\n` +
-    `受众：通用读者。`
-  );
-}
-
+/**
+ * 发送消息
+ */
 async function send() {
-  if (!input.value && mode.value === 'write' && !tip.value) return;
-  if (sending.value) return;
-  sending.value = true;
-  const question = input.value || (mode.value === 'write' ? tip.value : '润色当前文稿');
-  messages.value.push({ role: 'user', content: question });
-  input.value = '';
+    if (!input.value && mode.value === 'write' && !tip.value) return;
+    if (sending.value) return;
+    sending.value = true;
 
-  // 本次生成前置内容（用于写作时在末尾续写；润色则整体替换）
-  const baseBefore = mode.value === 'write' ? richText.value : '';
+    const question = input.value || (mode.value === 'write' ? tip.value : '润色当前文稿');
+    messages.value.push({ role: 'user', content: question });
+    input.value = '';
 
-  // 构造 OpenAI 兼容消息
-  const msg = [
-    { role: 'system', content: buildSystemPrompt() },
-    { role: 'user', content: buildUserPrompt() },
-  ];
+    // 本次生成前置内容（用于写作时在末尾续写；润色则整体替换）
+    const baseBefore = mode.value === 'write' ? richText.value : '';
 
-  const sessionId = `richtext-${Date.now()}`;
-  // 勾选“深度思考”时切换到 R1 推理模型
-  const model = selectModel({ reasoning: auto.value, fallback: 'deepseek-chat' });
+    // 获取用户选择的额外要求
+    const reqs = requires.value.filter(r => r.checked).map(r => r.label);
 
-  // 用于承接流式增量的伪聊天数组（供 store 写入 choices[0]._content）
-  chatMessageList.value = [
-    { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true, isSpread: true },
-  ];
+    // 构造 OpenAI 兼容消息
+    const msg = buildAIMessages(
+        mode.value === 'write' ? tip.value || input.value : richText.value,
+        style.value,
+        mode.value === 'write' ? 'write' : 'polish',
+        { len: len.value, requires: reqs }
+    );
 
-  try {
-    await streamChat({
-      sessionId,
-      messages: msg as any,
-      model,
-      chatMessageList: chatMessageList.value,
-      onDelta: async ({ chatMessageList }) => {
-        const last = chatMessageList[chatMessageList.length - 1];
-        const content = last?.choices?.[0]?._content || '';
-        const html = mdToHtml(content);
-        // 写作：在原文末尾追加；润色：替换整体
-        richText.value = mode.value === 'write' ? `${baseBefore}${html}` : html;
-        await nextTick();
-        // AI 输出时自动滚动到底部
-        if (tinymceRef.value?.scrollToBottom) {
-          tinymceRef.value.scrollToBottom();
-        }
-        // 深度思考面板自动滚动到底部
-        if (thinkRef.value) {
-          thinkRef.value.scrollTop = thinkRef.value.scrollHeight;
-        }
-      },
-      onDone: async () => {
-        messages.value.push({ role: 'assistant', content: '已生成内容，已写入编辑器。' });
+    const sessionId = `richtext-${Date.now()}`;
+    const model = selectModel({ reasoning: auto.value, fallback: 'deepseek-chat' });
+
+    // 初始化聊天消息列表
+    chatMessageList.value = [
+        { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true, isSpread: true },
+    ];
+
+    try {
+        await streamChat({
+            sessionId,
+            messages: msg as any,
+            model,
+            chatMessageList: chatMessageList.value,
+            onDelta: async ({ chatMessageList }) => {
+                const last = chatMessageList[chatMessageList.length - 1];
+                const content = last?.choices?.[0]?._content || '';
+                const html = mdToHtml(content);
+                richText.value = mode.value === 'write' ? `${baseBefore}${html}` : html;
+                await nextTick();
+                if (tinymceRef.value?.scrollToBottom) tinymceRef.value.scrollToBottom();
+                if (thinkRef.value) thinkRef.value.scrollTop = thinkRef.value.scrollHeight;
+            },
+            onDone: async () => {
+                messages.value.push({ role: 'assistant', content: '已生成内容，已写入编辑器。' });
+                sending.value = false;
+            },
+        });
+    } catch (e) {
+        console.error(e);
+        messages.value.push({ role: 'assistant', content: '生成失败，请重试。' });
         sending.value = false;
-      },
-    });
-  } catch (e) {
-    console.error(e);
-    messages.value.push({ role: 'assistant', content: '生成失败，请重试。' });
-    sending.value = false;
-  }
+    }
 }
+
 
 const chip =
   'px-[10px] h-[28px] rounded-[6px] bg-[#f3f4f6] text-[#4b5563] text-[12px] hover:bg-[#e5e7eb]';
@@ -261,3 +303,8 @@ const MenuItem = defineComponent({
   },
 });
 </script>
+<route lang="yaml">
+meta:
+  layout: richText
+  requiresAuth: false
+</route>

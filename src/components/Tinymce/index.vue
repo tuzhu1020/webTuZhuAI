@@ -486,7 +486,7 @@ async function aiPolishSelected() {
             polishing.value = false
             editorInstance.notificationManager.open({ text: 'AI 润色完成，请选择采用哪一版', type: 'info', timeout: 2000 })
           }
-        })
+        },'公文','润色')
     } catch (e) {
         console.error(e)
         // 失败时仅提示，用户仍可选择保留原文
@@ -871,6 +871,9 @@ const editorConfig = computed(() => ({
     table td, table th { border: 1px solid #ccc; padding: 6px; }
     img { -webkit-user-drag: none; user-drag: none; }
     pre { background: #f7f7f7; padding: 10px; border-radius: 6px; }
+    /* 鼠标选中文本：背景浅蓝，文字颜色保持不变 */
+    ::selection { background: #cce2fa; color: currentColor; }
+    ::-moz-selection { background: #cce2fa; color: currentColor; }
   `,
   
   // 设置回调
