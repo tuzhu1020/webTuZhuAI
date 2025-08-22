@@ -3,6 +3,14 @@ import { useChatStore } from '@/stores/chat';
 import { useUserStore } from '@/stores/user';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
 
+// 简单的会话控制器：用于在外部触发“暂停”某次流式会话
+export const aiSessionControl = {
+  _paused: new Set<string>(),
+  pause(sessionId: string) { if (sessionId) this._paused.add(sessionId); },
+  resume(sessionId: string) { if (sessionId) this._paused.delete(sessionId); },
+  isPaused(sessionId: string) { return !!sessionId && this._paused.has(sessionId); },
+};
+
 export interface StreamChatParams {
   sessionId?: string;
   messages: any[];
@@ -20,76 +28,74 @@ export interface StreamChatParams {
 export function useAiChat() {
   const chatStore = useChatStore();
   const userStore = useUserStore();
-    // 允许的风格列表
-const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学', '中性正式'];
+  // 允许的风格列表
+  const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学', '中性正式'];
 
-    /**
-     * 生成 AI 消息体
-     * @param {string} text - 要处理的文本
-     * @param {string} style - 写作风格
-     * @param {'润色'|'写作'} mode - 模式，润色或智能写作
-     * @returns {Array} messages - AI 请求消息数组
-     */
-    function createAIMessages(text, style = '中性正式', mode = '润色') {
-        const selectedStyle = allowedStyles.includes(style) ? style : '中性正式';
+  /**
+   * 生成 AI 消息体
+   * @param {string} text - 要处理的文本
+   * @param {string} style - 写作风格
+   * @param {'润色'|'写作'} mode - 模式，润色或智能写作
+   * @returns {Array} messages - AI 请求消息数组
+   */
+  function createAIMessages(text, style = '中性正式', mode = '润色') {
+    const selectedStyle = allowedStyles.includes(style) ? style : '中性正式';
+    // system 提示词
+    const systemContent = `
+      你是一个专业的中文写作助手。请严格遵守以下规则：
+      1. 输出内容必须是「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~）。
+      2. 保持原文语义不变，但要优化语法、逻辑、用词与表达流畅度，可适度调整结构使其更自然。
+      3. 必须保留 Markdown 格式和排版（如标题、列表、引用等），只润色文字或生成内容，不改变结构。
+      4. 禁止添加任何额外说明、解释或多余文字，只输出正文内容。
+      5. 根据用户提供的写作风格参数进行处理，若无参数或参数无效则默认采用「中性正式」风格。
+      - 学术：用词严谨，逻辑缜密，避免口语化。
+      - 公文：简洁规范，客观正式，强调逻辑与权威感。
+      - 日常：自然流畅，轻松易懂，贴近日常表达。
+      - 网络：轻快活泼，可适度使用流行语。
+      - 科普：通俗易懂，适合非专业读者理解。
+      - 文学：优美生动，富有表现力，可增加修辞与文采。
+      - 中性正式（默认）：保持客观、清晰，不偏向任何特殊语气。
+    `;
 
-        // system 提示词
-        const systemContent = `
-        你是一个专业的中文写作助手。请严格遵守以下规则：
-        1. 输出内容必须是「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~）。
-        2. 保持原文语义不变，但要优化语法、逻辑、用词与表达流畅度，可适度调整结构使其更自然。
-        3. 必须保留 Markdown 格式和排版（如标题、列表、引用等），只润色文字或生成内容，不改变结构。
-        4. 禁止添加任何额外说明、解释或多余文字，只输出正文内容。
-        5. 根据用户提供的写作风格参数进行处理，若无参数或参数无效则默认采用「中性正式」风格。
-        - 学术：用词严谨，逻辑缜密，避免口语化。
-        - 公文：简洁规范，客观正式，强调逻辑与权威感。
-        - 日常：自然流畅，轻松易懂，贴近日常表达。
-        - 网络：轻快活泼，可适度使用流行语。
-        - 科普：通俗易懂，适合非专业读者理解。
-        - 文学：优美生动，富有表现力，可增加修辞与文采。
-        - 中性正式（默认）：保持客观、清晰，不偏向任何特殊语气。
-        `;
-
-        // user 提示词，根据模式区分
-        let userContent = '';
-        if (mode === '润色') {
-            userContent = `请以「${selectedStyle}」风格对以下内容进行智能润色，并仅输出润色结果：\n\n${text}`;
-        } else if (mode === '写作') {
-            userContent = `请以「${selectedStyle}」风格，根据以下主题/要求生成完整中文内容，并仅输出正文 Markdown：\n\n${text}`;
-        }
-
-        return [
-            { role: 'system', content: systemContent },
-            { role: 'user', content: userContent }
-        ];
+    // user 提示词，根据模式区分
+    let userContent = '';
+    if (mode === '润色') {
+      userContent = `请以「${selectedStyle}」风格对以下内容进行智能润色，并仅输出润色结果：\n\n${text}`;
+    } else if (mode === '写作') {
+      userContent = `请以「${selectedStyle}」风格，根据以下主题/要求生成完整中文内容，并仅输出正文 Markdown：\n\n${text}`;
     }
 
-    /**
-     * 续写提示词
-     * - 场景1：根据全文续写
-     * - 场景2：根据提取的大纲续写
-     */
-    function createContinueMessages(payload: {
-      contextMarkdown: string; // 可为全文或大纲（均为 Markdown）
-      style?: string;          // 写作风格
-      isOutline?: boolean;     // 是否为大纲驱动
-    }) {
-      const selectedStyle = allowedStyles.includes(payload.style || '') ? (payload.style as string) : '中性正式';
-      const systemContent = `你是一个专业的中文写作助手，负责在不重复已有内容的前提下继续写作。请严格遵守：\n` +
-        `1. 仅输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~）。\n` +
-        `2. 严格延续已有内容的结构、语气、术语与格式（标题层级、列表、段落等）。\n` +
-        `3. 续写内容要自然衔接，不要复述或改写已有内容。\n` +
-        `4. 风格采用「${selectedStyle}」。`;
+    return [
+      { role: 'system', content: systemContent },
+      { role: 'user', content: userContent }
+    ];
+  }
 
-      const userContent = payload.isOutline
-        ? `以下是文章大纲（Markdown）。请基于大纲从最后部分自然续写新的内容，注意不要重复大纲中已有的条目，仅输出正文 Markdown：\n\n${payload.contextMarkdown}`
-        : `以下是文章的已写正文（Markdown）。请从文末自然续写新的内容，保持原有结构与格式，不要重复或改写已有部分，仅输出续写的正文 Markdown：\n\n${payload.contextMarkdown}`;
+  /**
+   * 续写提示词
+   * - 场景1：根据全文续写
+   * - 场景2：根据提取的大纲续写
+   */
+  function createContinueMessages(payload: {
+    contextMarkdown: string; // 可为全文或大纲（均为 Markdown）
+    style?: string;          // 写作风格
+    isOutline?: boolean;     // 是否为大纲驱动
+  }) {
+    const selectedStyle = allowedStyles.includes(payload.style || '') ? (payload.style as string) : '中性正式';
+    const systemContent = `你是一个专业的中文写作助手，负责在不重复已有内容的前提下继续写作。请严格遵守：\n` +
+      `1. 仅输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~）。\n` +
+      `2. 严格延续已有内容的结构、语气、术语与格式（标题层级、列表、段落等）。\n` +
+      `3. 续写内容要自然衔接，不要复述或改写已有内容。\n` +
+      `4. 风格采用「${selectedStyle}」。`;
+    const userContent = payload.isOutline
+      ? `以下是文章大纲（Markdown）。请基于大纲从最后部分自然续写新的内容，注意不要重复大纲中已有的条目，仅输出正文 Markdown：\n\n${payload.contextMarkdown}`
+      : `以下是文章的已写正文（Markdown）。请从文末自然续写新的内容，保持原有结构与格式，不要重复或改写已有部分，仅输出续写的正文 Markdown：\n\n${payload.contextMarkdown}`;
 
-      return [
-        { role: 'system', content: systemContent },
-        { role: 'user', content: userContent },
-      ];
-    }
+    return [
+      { role: 'system', content: systemContent },
+      { role: 'user', content: userContent },
+    ];
+  }
   function selectModel(opts?: { reasoning?: boolean; fallback?: string }) {
     const { reasoning = false, fallback = 'deepseek-chat' } = opts || {};
     return reasoning ? 'deepseek-reasoner' : fallback;
@@ -116,6 +122,12 @@ const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学
     return new Promise<any[]>((resolve, reject) => {
       const pump = async () => {
         try {
+          // 如果被外部请求“暂停”，则停止继续拉取并视为完成（上层可据此在 UI 上展示“已暂停”状态）
+          if (aiSessionControl.isPaused(sessionId)) {
+            if (params.onDelta) await params.onDelta({ chatMessageList: list, done: true });
+            if (params.onDone) await params.onDone({ chatMessageList: list });
+            return resolve(list);
+          }
           const done = await chatStore.processChatSession(sessionId, list as any);
           if (params.onDelta) await params.onDelta({ chatMessageList: list, done: Boolean(done) });
           if (!done) {

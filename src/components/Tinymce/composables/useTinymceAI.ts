@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { marked } from 'marked'
-import { useAiChat } from '@/composables/useAiChat'
+import { useAiChat, aiSessionControl } from '@/composables/useAiChat'
 
 export interface AiOptions {
   style?: string
@@ -10,6 +10,9 @@ export interface AiOptions {
 export function useTinymceAI(getEditor: () => any) {
   const polishing = ref(false)
   const continuing = ref(false)
+  // 防止暂停后重复提示
+  const polishPausedNotified = ref(false)
+  const continuePausedNotified = ref(false)
   const { polishText, continueText } = useAiChat()
 
   function mdToHtml(markdown: string) {
@@ -70,6 +73,7 @@ export function useTinymceAI(getEditor: () => any) {
     if (continuing.value || !editor) return
     try {
       continuing.value = true
+      continuePausedNotified.value = false
       const html = editor.getContent() || ''
       const plain = editor.getContent({ format: 'text' }) || ''
       const MAX_LEN = 6000
@@ -81,6 +85,7 @@ export function useTinymceAI(getEditor: () => any) {
       }
 
       const markerId = `ai-continue-${Date.now()}`
+      const sessionId = `tinymce-continue-${Date.now()}`
       const doc = editor.getDoc()
       const body = editor.getBody()
       const styleRef = (function findStyleRef() {
@@ -94,13 +99,32 @@ export function useTinymceAI(getEditor: () => any) {
           <div data-ai-continue-new style="background:#ecfeff;border:1px solid #67e8f9;padding:6px;border-radius:4px;">
             <span>AI 续写中...</span>
           </div>
+          <div data-ai-continue-actions style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+            <button data-ai-continue-pause data-session-id="${sessionId}" style="padding:4px 10px;border:1px solid #f59e0b;border-radius:4px;background:#f59e0b;color:#ffffff;cursor:pointer;">暂停本次续写</button>
+          </div>
         </div>`
       editor.selection.select(body, true)
       editor.selection.collapse(false)
       editor.selection.setContent(previewHtml)
-
-      const sessionId = `tinymce-continue-${Date.now()}`
       const model = options?.model || 'deepseek-chat'
+
+      // 绑定暂停按钮
+      try {
+        const wrap = doc && doc.querySelector(`div[data-ai-continue-wrapper="${markerId}"]`)
+        const pauseBtn = wrap && (wrap.querySelector('button[data-ai-continue-pause]') as HTMLElement)
+        if (pauseBtn) {
+          pauseBtn.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const sid = pauseBtn.getAttribute('data-session-id') || sessionId
+            aiSessionControl.pause(sid)
+            pauseBtn.textContent = '已暂停'
+            ;(pauseBtn as HTMLButtonElement).disabled = true
+            continuing.value = false
+            continuePausedNotified.value = true
+            editor.notificationManager.open({ text: '本次续写已暂停', type: 'info', timeout: 1500 })
+          }, { once: true })
+        }
+      } catch {}
 
       await continueText(contextMarkdown, {
         sessionId,
@@ -147,7 +171,10 @@ export function useTinymceAI(getEditor: () => any) {
             else w.parentNode && w.parentNode.removeChild(w)
           }
           continuing.value = false
-          editor.notificationManager.open({ text: 'AI 续写完成', type: 'info', timeout: 1500 })
+          const paused = aiSessionControl.isPaused(sessionId)
+          if (!(paused && continuePausedNotified.value)) {
+            editor.notificationManager.open({ text: paused ? 'AI 续写已暂停' : 'AI 续写完成', type: 'info', timeout: 1500 })
+          }
         }
       })
     } catch (e) {
@@ -172,8 +199,10 @@ export function useTinymceAI(getEditor: () => any) {
       return
     }
     polishing.value = true
+    polishPausedNotified.value = false
 
     const markerId = `ai-polish-${Date.now()}`
+    const sessionId = `tinymce-polish-${Date.now()}`
     const wrapperHtml = `
       <div data-ai-polish-wrapper="${markerId}" style="border:1px dashed #94a3b8;padding:8px;border-radius:6px;margin:6px 0;background:#f8fafc;">
         <div data-ai-polish-original style="background:#fff7ed;border:1px solid #fdba74;padding:6px;border-radius:4px;">
@@ -182,19 +211,35 @@ export function useTinymceAI(getEditor: () => any) {
         <div data-ai-polish-new style="background:#ecfeff;border:1px solid #67e8f9;padding:6px;border-radius:4px;margin-top:8px;">
           <span data-ai-polish="${markerId}">AI 润色中...</span>
         </div>
-        <div data-ai-polish-actions style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+        <div data-ai-polish-actions style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <div style="margin-right:auto">
+            <button data-ai-polish-pause data-session-id="${sessionId}" style="padding:4px 10px;border:1px solid #f59e0b;border-radius:4px;background:#f59e0b;color:#ffffff;cursor:pointer;">暂停本次润色</button>
+          </div>
           <button data-ai-choose="orig" style="padding:4px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#ffffff;color:#334155;cursor:pointer;">保留原文</button>
           <button data-ai-choose="new" style="padding:4px 10px;border:1px solid #22c55e;border-radius:4px;background:#22c55e;color:#ffffff;cursor:pointer;">采用新文</button>
         </div>
       </div>`
     editor.selection.setContent(wrapperHtml)
 
-    const sessionId = `tinymce-polish-${Date.now()}`
     const model = options?.model || 'deepseek-chat'
 
     const doc = editor.getDoc()
     const wrapper = doc && doc.querySelector(`div[data-ai-polish-wrapper="${markerId}"]`)
     if (wrapper) {
+      // 绑定暂停按钮
+      const pauseBtn = wrapper.querySelector('button[data-ai-polish-pause]') as HTMLButtonElement | null
+      if (pauseBtn) {
+        pauseBtn.addEventListener('click', (e: any) => {
+          e.preventDefault(); e.stopPropagation();
+          const sid = pauseBtn.getAttribute('data-session-id') || sessionId
+          aiSessionControl.pause(sid)
+          pauseBtn.textContent = '已暂停'
+          pauseBtn.disabled = true
+          polishing.value = false
+          polishPausedNotified.value = true
+          editor.notificationManager.open({ text: '本次润色已暂停', type: 'info', timeout: 1500 })
+        }, { once: true })
+      }
       const onChoose = (e: any) => {
         e.preventDefault(); e.stopPropagation();
         const target = e.currentTarget as HTMLElement
@@ -570,7 +615,10 @@ export function useTinymceAI(getEditor: () => any) {
         },
         onDone: () => {
           polishing.value = false
-          editor.notificationManager.open({ text: 'AI 润色完成，请选择采用哪一版', type: 'info', timeout: 2000 })
+          const paused = aiSessionControl.isPaused(sessionId)
+          if (!(paused && polishPausedNotified.value)) {
+            editor.notificationManager.open({ text: paused ? 'AI 润色已暂停' : 'AI 润色完成，请选择采用哪一版', type: 'info', timeout: 2000 })
+          }
         }
       }, options?.style || '公文', '润色')
     } catch (e) {
