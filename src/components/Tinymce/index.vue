@@ -5,7 +5,7 @@
       :id="editorId"
       v-model="content"
       :init="editorConfig"
-      :api-key="null"
+      :tinymce-script-src="'/tinymce/tinymce.min.js'"
       @init="handleEditorInit"
       @input="handleInput"
       @change="handleChange"
@@ -13,15 +13,12 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, defineProps, defineEmits } from 'vue'
 import Editor from '@tinymce/tinymce-vue'
 import tinymce from 'tinymce/tinymce'
 import { marked } from 'marked'
-import { useChatStore } from '@/stores/chat'
-import { useUserStore } from '@/stores/user'
 import { useAiChat } from '@/composables/useAiChat'
-import { AI_IDENTITY_AI_VALUE } from '@/constant/enum'
 
 // Word 导入/导出支持
 import mammoth from 'mammoth/mammoth.browser'
@@ -40,8 +37,6 @@ const editorId = ref(`tinymce-${Date.now()}`)
 const content = ref('')
 let editorInstance = null
 const polishing = ref(false)
-const chatStore = useChatStore()
-const userStore = useUserStore()
 const { polishText } = useAiChat()
 // Markdown 转 HTML（与页面保持一致）
 function mdToHtml(markdown) {
@@ -54,48 +49,452 @@ function mdToHtml(markdown) {
 async function aiPolishSelected() {
     if (polishing.value || !editorInstance) return
     const selText = editorInstance.selection.getContent({ format: 'text' }) || ''
+    const selHtml = editorInstance.selection.getContent({ format: 'html' }) || ''
     if (!selText.trim()) {
         editorInstance.notificationManager.open({ text: '请先选中文本再使用 AI 润色', type: 'warning', timeout: 2000 })
         return
     }
     polishing.value = true
 
-    // 插入占位符，避免用户误操作
+    // 用容器包裹选区：上方为原文（黄色背景），下方为新文占位（绿色背景），底部是选择按钮
     const markerId = `ai-polish-${Date.now()}`
-    const placeholderHtml = `<span data-ai-polish="${markerId}" style="background:#fff7ed;border:1px dashed #fdba74;padding:2px 4px;border-radius:4px;color:#9a3412;">AI 润色中...</span>`
-    editorInstance.selection.setContent(placeholderHtml)
-
-    // 组织消息（Polish 指令），输出为纯 Markdown
-    const messages = [
-        { role: 'system', content: '你是一个中文写作润色助手。请严格输出「纯 Markdown 文本」，不要使用任何代码围栏（如 ``` 或 ~~~）。保持语义不变，优化逻辑、语法与用词，可适度调整结构。' },
-        { role: 'user', content: `请对以下内容进行智能润色，并仅输出润色后的内容：\n\n${selText}` }
-    ]
+    const wrapperHtml = `
+      <div data-ai-polish-wrapper="${markerId}" style="border:1px dashed #94a3b8;padding:8px;border-radius:6px;margin:6px 0;background:#f8fafc;">
+        <div data-ai-polish-original style="background:#fff7ed;border:1px solid #fdba74;padding:6px;border-radius:4px;">
+          ${selHtml}
+        </div>
+        <div data-ai-polish-new style="background:#ecfeff;border:1px solid #67e8f9;padding:6px;border-radius:4px;margin-top:8px;">
+          <span data-ai-polish="${markerId}">AI 润色中...</span>
+        </div>
+        <div data-ai-polish-actions style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+          <button data-ai-choose="orig" style="padding:4px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#ffffff;color:#334155;cursor:pointer;">保留原文</button>
+          <button data-ai-choose="new" style="padding:4px 10px;border:1px solid #22c55e;border-radius:4px;background:#22c55e;color:#ffffff;cursor:pointer;">采用新文</button>
+        </div>
+      </div>`
+    editorInstance.selection.setContent(wrapperHtml)
 
     const sessionId = `tinymce-polish-${Date.now()}`
     const model = 'deepseek-chat'
 
-    try {
-        const list = await polishText(selText, { sessionId, model })
-        const last = list[list.length - 1]
-        const md = last?.choices?.[0]?._content || ''
-        const html = mdToHtml(md)
-        // 用结果替换占位符
-        const doc = editorInstance.getDoc()
-        const node = doc && doc.querySelector(`span[data-ai-polish="${markerId}"]`)
-        if (node) {
-            node.outerHTML = html || selText
-        } else {
-            // 若未找到占位符，直接插入（兜底）
-            editorInstance.selection.setContent(html || selText)
+    // 绑定选择按钮事件（仅作用于当前 wrapper）
+    const doc = editorInstance.getDoc()
+    const wrapper = doc && doc.querySelector(`div[data-ai-polish-wrapper="${markerId}"]`)
+    if (wrapper) {
+      const onChoose = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const target = e.currentTarget as HTMLElement
+        const type = target?.getAttribute('data-ai-choose')
+        const orig = wrapper.querySelector('div[data-ai-polish-original]') as HTMLElement
+        const neu = wrapper.querySelector('div[data-ai-polish-new]') as HTMLElement
+        let replaceWith = type === 'orig' ? (orig?.innerHTML || '') : (neu?.innerHTML || '')
+
+        if (type === 'new') {
+          const hasSingleChild = !!orig && orig.childElementCount === 1
+          if (hasSingleChild) {
+            // 单一元素：直接克隆该元素，保留其标签与属性
+            const styleRefEl = orig.firstElementChild as HTMLElement
+            if (styleRefEl && replaceWith) {
+              const cloned = styleRefEl.cloneNode(false) as HTMLElement
+              // 预留原有锚点/书签等不可见节点（如 <a id> 或 <a name>）
+              const preserved = Array.from(styleRefEl.childNodes).filter((n: any) => {
+                if (n.nodeType !== 1) return false
+                const el = n as HTMLElement
+                const tag = el.tagName.toLowerCase()
+                return tag === 'a' && (el.id || el.getAttribute('name'))
+              }) as HTMLElement[]
+              cloned.innerHTML = ''
+              preserved.forEach((a) => cloned.appendChild(a.cloneNode(true)))
+              // 将 AI 内容注入
+              const doc = wrapper.ownerDocument!
+              const tmp = doc.createElement('div')
+              tmp.innerHTML = replaceWith
+              // 去除与 preserved 重复的锚点
+              if (preserved.length) {
+                const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
+                const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
+                tmp.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
+                  const id = (el.getAttribute('id') || '').trim()
+                  const nm = (el.getAttribute('name') || '').trim()
+                  if ((id && ids.has(id)) || (nm && names.has(nm))) el.parentNode?.removeChild(el)
+                })
+              }
+              while (tmp.firstChild) cloned.appendChild(tmp.firstChild)
+              replaceWith = cloned.outerHTML
+            }
+          } else {
+            // 多元素或混合节点：尽量按原子元素结构逐一映射，保留原标签与属性
+            const docView = wrapper.ownerDocument?.defaultView
+            const doc = wrapper.ownerDocument
+            if (doc && replaceWith) {
+              const tmp = doc.createElement('div')
+              tmp.innerHTML = replaceWith
+              // 1) 去除 AI 返回中可能夹带的我们临时 wrapper（解包而非保留，以免把背景/边框带入）
+              const unwrapList = tmp.querySelectorAll('[data-ai-polish-wrapper], [data-ai-polish-original], [data-ai-polish-new], [data-ai-polish-actions]')
+              unwrapList.forEach((el) => {
+                const parent = el.parentNode
+                if (!parent) return
+                while (el.firstChild) parent.insertBefore(el.firstChild, el)
+                parent.removeChild(el)
+              })
+              // 2) 去掉开头可能出现的“新问：”等提示性文本
+              while (tmp.firstChild && tmp.firstChild.nodeType === 3) { // TEXT_NODE
+                const t = tmp.firstChild.textContent || ''
+                const cleaned = t.replace(/^\s*新问[:：]\s*/i, '').replace(/^\s*新文[:：]\s*/i, '')
+                if (cleaned.length === t.length) {
+                  // 没有“新问：”前缀，停止
+                  break
+                }
+                if (cleaned) tmp.firstChild.textContent = cleaned
+                else tmp.removeChild(tmp.firstChild)
+              }
+              const newChildren = Array.from(tmp.children)
+              const origChildren = Array.from(orig.children) as HTMLElement[]
+
+              if (newChildren.length && origChildren.length) {
+                // 构建原元素锚点索引
+                const anchorToIndex = new Map<string, number>()
+                origChildren.forEach((oc, idx) => {
+                  Array.from(oc.querySelectorAll('a[id], a[name]')).forEach((a: Element) => {
+                    const id = (a.getAttribute('id') || '').trim()
+                    const nm = (a.getAttribute('name') || '').trim()
+                    if (id) anchorToIndex.set(`id:${id}`, idx)
+                    if (nm) anchorToIndex.set(`name:${nm}`, idx)
+                  })
+                })
+                const taken = new Set<number>()
+                const mapped = new Array(origChildren.length).fill('') as string[]
+                let cursor = 0
+
+                const takeNextAvailable = (start: number) => {
+                  for (let k = start; k < origChildren.length; k++) if (!taken.has(k)) return k
+                  return -1
+                }
+
+                const assignToIndex = (targetIdx: number, htmlFragment: string) => {
+                  if (targetIdx < 0 || targetIdx >= origChildren.length) return
+                  const ref = origChildren[targetIdx]
+                  const clone = ref.cloneNode(false) as HTMLElement
+                  // 保留原锚点
+                  const preserved = Array.from(ref.childNodes).filter((n: any) => {
+                    if (n.nodeType !== 1) return false
+                    const el = n as HTMLElement
+                    const tag = el.tagName.toLowerCase()
+                    return tag === 'a' && (el.id || el.getAttribute('name'))
+                  }) as HTMLElement[]
+                  clone.innerHTML = ''
+                  preserved.forEach((a) => clone.appendChild(a.cloneNode(true)))
+                  const tmpNeu = ref.ownerDocument!.createElement('div')
+                  tmpNeu.innerHTML = htmlFragment
+                  if (preserved.length) {
+                    const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
+                    const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
+                    tmpNeu.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
+                      const id = (el.getAttribute('id') || '').trim()
+                      const nm = (el.getAttribute('name') || '').trim()
+                      if ((id && ids.has(id)) || (nm && names.has(nm))) el.parentNode?.removeChild(el)
+                    })
+                  }
+                  while (tmpNeu.firstChild) clone.appendChild(tmpNeu.firstChild)
+                  mapped[targetIdx] = clone.outerHTML
+                  taken.add(targetIdx)
+                  if (targetIdx >= cursor) cursor = targetIdx + 1
+                }
+                
+                // 遍历新块，按锚点/顺序映射，并处理首个 <br> 合并拆分
+                for (let n = 0; n < newChildren.length; n++) {
+                  const neu = newChildren[n] as HTMLElement
+                  const rawHtml = neu.innerHTML || neu.textContent || ''
+                  // 优先锚点匹配
+                  let targetIdx = -1
+                  Array.from(neu.querySelectorAll('a[id], a[name]')).some((a: Element) => {
+                    const id = (a.getAttribute('id') || '').trim()
+                    const nm = (a.getAttribute('name') || '').trim()
+                    if (id && anchorToIndex.has(`id:${id}`)) {
+                      const idx = anchorToIndex.get(`id:${id}`)!
+                      if (!taken.has(idx)) { targetIdx = idx; return true }
+                    }
+                    if (nm && anchorToIndex.has(`name:${nm}`)) {
+                      const idx = anchorToIndex.get(`name:${nm}`)!
+                      if (!taken.has(idx)) { targetIdx = idx; return true }
+                    }
+                    return false
+                  })
+
+                  // <br> 拆分（仅处理首个）
+                  const brPos = rawHtml.indexOf('<br')
+                  if (brPos >= 0) {
+                    const close = rawHtml.indexOf('>', brPos)
+                    const head = rawHtml.slice(0, brPos)
+                    const tail = rawHtml.slice(close + 1)
+                    if (targetIdx < 0) targetIdx = takeNextAvailable(cursor)
+                    if (targetIdx >= 0) assignToIndex(targetIdx, head)
+                    // 第二段锚点优先
+                    let idx2 = -1
+                    const tmpTail = orig.ownerDocument!.createElement('div')
+                    tmpTail.innerHTML = tail
+                    Array.from(tmpTail.querySelectorAll('a[id], a[name]')).some((a: Element) => {
+                      const id = (a.getAttribute('id') || '').trim()
+                      const nm = (a.getAttribute('name') || '').trim()
+                      if (id && anchorToIndex.has(`id:${id}`)) {
+                        const idx = anchorToIndex.get(`id:${id}`)!
+                        if (!taken.has(idx)) { idx2 = idx; return true }
+                      }
+                      if (nm && anchorToIndex.has(`name:${nm}`)) {
+                        const idx = anchorToIndex.get(`name:${nm}`)!
+                        if (!taken.has(idx)) { idx2 = idx; return true }
+                      }
+                      return false
+                    })
+                    if (idx2 < 0) idx2 = takeNextAvailable(Math.max(cursor, (targetIdx >= 0 ? targetIdx + 1 : 0)))
+                    if (idx2 >= 0) assignToIndex(idx2, tail)
+                    continue
+                  }
+
+                  if (targetIdx < 0) targetIdx = takeNextAvailable(cursor)
+                  if (targetIdx >= 0) assignToIndex(targetIdx, rawHtml)
+                }
+
+                replaceWith = mapped.join('')
+              } else if (docView) {
+                // 兜底：用原容器的计算样式生成一个 div 承载新内容（仅排版相关样式）
+                const cs = docView.getComputedStyle(orig)
+                const styleMap: Record<string, string> = {
+                  'font-family': cs.fontFamily,
+                  'font-size': cs.fontSize,
+                  'font-weight': cs.fontWeight,
+                  'font-style': cs.fontStyle,
+                  'line-height': cs.lineHeight,
+                  'color': cs.color,
+                  'text-decoration': (cs as any).textDecorationLine || ''
+                }
+                const styleStr = Object.entries(styleMap)
+                  .filter(([, v]) => v && v !== 'normal' && v !== '400')
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join('; ')
+                replaceWith = `<div style="${styleStr}">${replaceWith}</div>`
+              }
+            }
+          }
         }
-        polishing.value = false
-        editorInstance.notificationManager.open({ text: 'AI 润色完成', type: 'info', timeout: 1500 })
+
+        // 用用户选择的内容替换整个容器（不保留任何临时高亮/背景）
+        if (replaceWith) wrapper.outerHTML = replaceWith
+        else wrapper.outerHTML = orig?.innerHTML || ''
+      }
+      const btnOrig = wrapper.querySelector('button[data-ai-choose="orig"]')
+      const btnNew = wrapper.querySelector('button[data-ai-choose="new"]')
+      btnOrig && btnOrig.addEventListener('click', onChoose, { once: true })
+      btnNew && btnNew.addEventListener('click', onChoose, { once: true })
+    }
+
+    try {
+        await polishText(selText, {
+          sessionId,
+          model,
+          onDelta: ({ chatMessageList }) => {
+            const last = chatMessageList[chatMessageList.length - 1]
+            const md = last?.choices?.[0]?._content || ''
+            const html = mdToHtml(md)
+            const doc2 = editorInstance.getDoc()
+            const wrap2 = doc2 && doc2.querySelector(`div[data-ai-polish-wrapper="${markerId}"]`)
+            const newBlock2 = wrap2 && wrap2.querySelector('div[data-ai-polish-new]') as HTMLElement
+            const orig2 = wrap2 && wrap2.querySelector('div[data-ai-polish-original]') as HTMLElement
+            if (newBlock2 && orig2) {
+              let preview = html || selText
+              // 清洗 AI 输出的临时包装与前缀
+              const tmp = doc2.createElement('div')
+              tmp.innerHTML = preview
+              const unwrapList = tmp.querySelectorAll('[data-ai-polish-wrapper], [data-ai-polish-original], [data-ai-polish-new], [data-ai-polish-actions]')
+              unwrapList.forEach((el) => {
+                const parent = el.parentNode
+                if (!parent) return
+                while (el.firstChild) parent.insertBefore(el.firstChild, el)
+                parent.removeChild(el)
+              })
+              while (tmp.firstChild && tmp.firstChild.nodeType === 3) {
+                const t = tmp.firstChild.textContent || ''
+                const cleaned = t.replace(/^\s*新问[:：]\s*/i, '').replace(/^\s*新文[:：]\s*/i, '')
+                if (cleaned.length === t.length) break
+                if (cleaned) tmp.firstChild.textContent = cleaned
+                else tmp.removeChild(tmp.firstChild)
+              }
+
+              // 生成与“采用新文”一致的结构化预览
+              const hasSingleChild = !!orig2 && orig2.childElementCount === 1
+              if (hasSingleChild) {
+                const styleRefEl = orig2.firstElementChild as HTMLElement
+                if (styleRefEl) {
+                  const cloned = styleRefEl.cloneNode(false) as HTMLElement
+                  // 保留锚点
+                  const preserved = Array.from(styleRefEl.childNodes).filter((n: any) => {
+                    if (n.nodeType !== 1) return false
+                    const el = n as HTMLElement
+                    const tag = el.tagName.toLowerCase()
+                    return tag === 'a' && (el.id || el.getAttribute('name'))
+                  }) as HTMLElement[]
+                  cloned.innerHTML = ''
+                  preserved.forEach((a) => cloned.appendChild(a.cloneNode(true)))
+                  // 去除与 preserved 重复的锚点
+                  if (preserved.length) {
+                    const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
+                    const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
+                    tmp.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
+                      const id = (el.getAttribute('id') || '').trim()
+                      const nm = (el.getAttribute('name') || '').trim()
+                      if ((id && ids.has(id)) || (nm && names.has(nm))) el.parentNode?.removeChild(el)
+                    })
+                  }
+                  while (tmp.firstChild) cloned.appendChild(tmp.firstChild)
+                  newBlock2.innerHTML = cloned.outerHTML
+                } else {
+                  newBlock2.innerHTML = tmp.innerHTML
+                }
+              } else {
+                const newChildren = Array.from(tmp.children)
+                const origChildren = Array.from(orig2.children) as HTMLElement[]
+                if (newChildren.length && origChildren.length) {
+                  // 构建原元素锚点索引
+                  const anchorToIndex = new Map<string, number>()
+                  origChildren.forEach((oc, idx) => {
+                    Array.from(oc.querySelectorAll('a[id], a[name]')).forEach((a: Element) => {
+                      const id = (a.getAttribute('id') || '').trim()
+                      const nm = (a.getAttribute('name') || '').trim()
+                      if (id) anchorToIndex.set(`id:${id}`, idx)
+                      if (nm) anchorToIndex.set(`name:${nm}`, idx)
+                    })
+                  })
+                  const taken = new Set<number>()
+                  const mapped = new Array(origChildren.length).fill('') as string[]
+                  let cursor = 0
+
+                  const takeNextAvailable = (start: number) => {
+                    for (let k = start; k < origChildren.length; k++) if (!taken.has(k)) return k
+                    return -1
+                  }
+
+                  const assignToIndex = (targetIdx: number, htmlFragment: string) => {
+                    if (targetIdx < 0 || targetIdx >= origChildren.length) return
+                    const ref = origChildren[targetIdx]
+                    const clone = ref.cloneNode(false) as HTMLElement
+                    // 保留原锚点
+                    const preserved = Array.from(ref.childNodes).filter((n: any) => {
+                      if (n.nodeType !== 1) return false
+                      const el = n as HTMLElement
+                      const tag = el.tagName.toLowerCase()
+                      return tag === 'a' && (el.id || el.getAttribute('name'))
+                    }) as HTMLElement[]
+                    clone.innerHTML = ''
+                    preserved.forEach((a) => clone.appendChild(a.cloneNode(true)))
+                    const tmpNeu = ref.ownerDocument!.createElement('div')
+                    tmpNeu.innerHTML = htmlFragment
+                    if (preserved.length) {
+                      const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
+                      const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
+                      tmpNeu.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
+                        const id = (el.getAttribute('id') || '').trim()
+                        const nm = (el.getAttribute('name') || '').trim()
+                        if ((id && ids.has(id)) || (nm && names.has(nm))) el.parentNode?.removeChild(el)
+                      })
+                    }
+                    while (tmpNeu.firstChild) clone.appendChild(tmpNeu.firstChild)
+                    mapped[targetIdx] = clone.outerHTML
+                    taken.add(targetIdx)
+                    if (targetIdx >= cursor) cursor = targetIdx + 1
+                  }
+
+                  for (let n = 0; n < newChildren.length; n++) {
+                    const neu = newChildren[n] as HTMLElement
+                    const rawHtml = neu.innerHTML || neu.textContent || ''
+                    // 优先锚点匹配
+                    let targetIdx = -1
+                    Array.from(neu.querySelectorAll('a[id], a[name]')).some((a: Element) => {
+                      const id = (a.getAttribute('id') || '').trim()
+                      const nm = (a.getAttribute('name') || '').trim()
+                      if (id && anchorToIndex.has(`id:${id}`)) {
+                        const idx = anchorToIndex.get(`id:${id}`)!
+                        if (!taken.has(idx)) { targetIdx = idx; return true }
+                      }
+                      if (nm && anchorToIndex.has(`name:${nm}`)) {
+                        const idx = anchorToIndex.get(`name:${nm}`)!
+                        if (!taken.has(idx)) { targetIdx = idx; return true }
+                      }
+                      return false
+                    })
+
+                    // <br> 拆分
+                    const brPos = rawHtml.indexOf('<br')
+                    if (brPos >= 0) {
+                      const close = rawHtml.indexOf('>', brPos)
+                      const head = rawHtml.slice(0, brPos)
+                      const tail = rawHtml.slice(close + 1)
+                      if (targetIdx < 0) targetIdx = takeNextAvailable(cursor)
+                      if (targetIdx >= 0) assignToIndex(targetIdx, head)
+                      // 第二段锚点优先
+                      let idx2 = -1
+                      const tmpTail = orig2.ownerDocument!.createElement('div')
+                      tmpTail.innerHTML = tail
+                      Array.from(tmpTail.querySelectorAll('a[id], a[name]')).some((a: Element) => {
+                        const id = (a.getAttribute('id') || '').trim()
+                        const nm = (a.getAttribute('name') || '').trim()
+                        if (id && anchorToIndex.has(`id:${id}`)) {
+                          const idx = anchorToIndex.get(`id:${id}`)!
+                          if (!taken.has(idx)) { idx2 = idx; return true }
+                        }
+                        if (nm && anchorToIndex.has(`name:${nm}`)) {
+                          const idx = anchorToIndex.get(`name:${nm}`)!
+                          if (!taken.has(idx)) { idx2 = idx; return true }
+                        }
+                        return false
+                      })
+                      if (idx2 < 0) idx2 = takeNextAvailable(Math.max(cursor, (targetIdx >= 0 ? targetIdx + 1 : 0)))
+                      if (idx2 >= 0) assignToIndex(idx2, tail)
+                      continue
+                    }
+
+                    if (targetIdx < 0) targetIdx = takeNextAvailable(cursor)
+                    if (targetIdx >= 0) assignToIndex(targetIdx, rawHtml)
+                  }
+
+                  newBlock2.innerHTML = mapped.join('')
+                } else {
+                  // 兜底：应用原容器的排版样式
+                  const view = wrap2.ownerDocument?.defaultView
+                  if (view) {
+                    const cs = view.getComputedStyle(orig2)
+                    const styleMap: Record<string, string> = {
+                      'font-family': cs.fontFamily,
+                      'font-size': cs.fontSize,
+                      'font-weight': cs.fontWeight,
+                      'font-style': cs.fontStyle,
+                      'line-height': cs.lineHeight,
+                      'color': cs.color,
+                      'text-decoration': (cs as any).textDecorationLine || ''
+                    }
+                    const styleStr = Object.entries(styleMap)
+                      .filter(([, v]) => v && v !== 'normal' && v !== '400')
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join('; ')
+                    newBlock2.innerHTML = `<div style="${styleStr}">${tmp.innerHTML}</div>`
+                  } else {
+                    newBlock2.innerHTML = tmp.innerHTML
+                  }
+                }
+              }
+            }
+          },
+          onDone: () => {
+            polishing.value = false
+            editorInstance.notificationManager.open({ text: 'AI 润色完成，请选择采用哪一版', type: 'info', timeout: 2000 })
+          }
+        })
     } catch (e) {
         console.error(e)
-        // 失败用原文回填
+        // 失败时仅提示，用户仍可选择保留原文
         const doc = editorInstance.getDoc()
-        const node = doc && doc.querySelector(`span[data-ai-polish="${markerId}"]`)
-        if (node) node.outerHTML = selText
+        const newBlock = doc && doc.querySelector(`div[data-ai-polish-wrapper="${markerId}"] div[data-ai-polish-new]`)
+        if (newBlock) {
+          newBlock.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:6px;border-radius:4px;">AI 润色失败，请稍后重试。</div>`
+        }
         polishing.value = false
         editorInstance.notificationManager.open({ text: 'AI 润色失败，请稍后重试', type: 'error', timeout: 2000 })
     }
