@@ -34,6 +34,37 @@ const editorId = ref(`tinymce-${Date.now()}`)
 const content = ref('')
 let editorInstance = null
 
+// 滚动到底部
+function scrollToBottom() {
+  if (!editorInstance) return
+  
+  try {
+    const body = editorInstance.getBody()
+    if (body) {
+      // 方法1: 滚动到文档底部
+      body.scrollTop = body.scrollHeight
+      
+      // 方法2: 如果方法1不生效，尝试滚动到最后一个元素
+      const lastElement = body.lastElementChild
+      if (lastElement) {
+        lastElement.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      }
+      
+      // 方法3: 设置光标到最后位置（确保可见）
+      editorInstance.selection.select(body, true)
+      editorInstance.selection.collapse(false)
+    }
+  } catch (error) {
+    console.warn('滚动到底部失败:', error)
+  }
+}
+
+// 暴露滚动方法给父组件
+defineExpose({
+  scrollToBottom,
+  getEditor: () => editorInstance
+})
+
 // 图片上传处理
 function handleImageUpload(blobInfo, success, failure) {
   if (blobInfo.blob().size > props.fileSizes * 1024 * 1024) {
