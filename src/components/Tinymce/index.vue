@@ -31,13 +31,15 @@ const props = defineProps({
   fileSizes: { type: Number, default: 10 },
   init: { type: Object, default: () => ({}) }
 })
+
 const emits = defineEmits(['update:modelValue', 'change', 'input'])
 
 const editorId = ref(`tinymce-${Date.now()}`)
 const content = ref('')
 let editorInstance = null
 const polishing = ref(false)
-const { polishText } = useAiChat()
+const continuing = ref(false)
+const { polishText, continueText } = useAiChat()
 // Markdown 转 HTML（与页面保持一致）
 function mdToHtml(markdown) {
     if (!markdown) return ''
@@ -45,6 +47,140 @@ function mdToHtml(markdown) {
     return marked.parse(markdown)
 }
 
+// 从 HTML 提取大纲（Markdown 形式）：优先标题，其次列表，再次段落首句
+function htmlToOutlineMarkdown(html) {
+  try {
+    const div = document.createElement('div')
+    div.innerHTML = html || ''
+    const lines: string[] = []
+    const walk = (node: Element) => {
+      const tag = node.tagName ? node.tagName.toLowerCase() : ''
+      if (/^h[1-6]$/.test(tag)) {
+        const level = Number(tag.substring(1))
+        const text = (node.textContent || '').trim()
+        if (text) lines.push('#'.repeat(Math.min(Math.max(level,1),6)) + ' ' + text)
+      } else if (tag === 'li') {
+        const text = (node.textContent || '').trim()
+        if (text) lines.push('- ' + text)
+      } else if (tag === 'p') {
+        const text = (node.textContent || '').replace(/\s+/g, ' ').trim()
+        if (text) {
+          const firstSentence = text.split(/(?<=[。！？!?\.])\s+/)[0] || text.slice(0, 60)
+          lines.push('- ' + firstSentence)
+        }
+      }
+      Array.from(node.children || []).forEach((c: any) => walk(c))
+    }
+    Array.from(div.children || []).forEach((c: any) => walk(c))
+    return lines.join('\n')
+  } catch {
+    return ''
+  }
+}
+
+// AI 续写全文或基于大纲续写
+async function aiContinueWriting() {
+  if (continuing.value || !editorInstance) return
+  try {
+    continuing.value = true
+    const html = editorInstance.getContent() || ''
+    const plain = editorInstance.getContent({ format: 'text' }) || ''
+    const MAX_LEN = 6000 // 粗略字符上限，避免超过模型输入
+    const useOutline = plain.length > MAX_LEN
+    const contextMarkdown = useOutline ? htmlToOutlineMarkdown(html) : (function htmlToMdSafe(h){
+      // 简单兜底：当无法可靠从 HTML 转回 MD 时，使用纯文本
+      const text = editorInstance.getContent({ format: 'text' }) || ''
+      return text
+    })(html)
+
+    if (useOutline && !contextMarkdown) {
+      editorInstance.notificationManager.open({ text: '无法提取大纲，已改用全文文本续写', type: 'warning', timeout: 2000 })
+    }
+
+    const markerId = `ai-continue-${Date.now()}`
+    const doc = editorInstance.getDoc()
+    const body = editorInstance.getBody()
+    // 找到最后一个可作为样式参考的元素
+    const styleRef = (function findStyleRef(){
+      let el = body && body.lastElementChild as HTMLElement
+      while (el && ['BR'].includes(el.tagName)) el = el.previousElementSibling as any
+      return el as HTMLElement
+    })()
+
+    // 插入占位容器
+    const previewHtml = `
+      <div data-ai-continue-wrapper="${markerId}" style="border:1px dashed #94a3b8;padding:8px;border-radius:6px;margin:6px 0;background:#f8fafc;">
+        <div data-ai-continue-new style="background:#ecfeff;border:1px solid #67e8f9;padding:6px;border-radius:4px;">
+          <span>AI 续写中...</span>
+        </div>
+      </div>`
+    editorInstance.selection.select(body, true)
+    editorInstance.selection.collapse(false)
+    editorInstance.selection.setContent(previewHtml)
+
+    const sessionId = `tinymce-continue-${Date.now()}`
+    const model = 'deepseek-chat'
+
+    await continueText(contextMarkdown, {
+      sessionId,
+      model,
+      style: '公文',
+      isOutline: useOutline,
+      onDelta: ({ chatMessageList }) => {
+        const last = chatMessageList[chatMessageList.length - 1]
+        const md = last?.choices?.[0]?._content || ''
+        const htmlPart = mdToHtml(md)
+        const w = doc && doc.querySelector(`div[data-ai-continue-wrapper="${markerId}"]`)
+        const newBlock = w && (w.querySelector('div[data-ai-continue-new]') as HTMLElement)
+        if (newBlock) {
+          // 将 AI 续写结果应用参考样式
+          let outHTML = htmlPart
+          if (styleRef) {
+            const view = w.ownerDocument?.defaultView
+            if (view) {
+              const cs = view.getComputedStyle(styleRef)
+              const styleMap: Record<string, string> = {
+                'font-family': cs.fontFamily,
+                'font-size': cs.fontSize,
+                'font-weight': cs.fontWeight,
+                'font-style': cs.fontStyle,
+                'line-height': cs.lineHeight,
+                'color': cs.color,
+                'text-decoration': (cs as any).textDecorationLine || ''
+              }
+              const styleStr = Object.entries(styleMap)
+                .filter(([, v]) => v && v !== 'normal' && v !== '400')
+                .map(([k, v]) => `${k}: ${v}`)
+                .join('; ')
+              outHTML = `<div style="${styleStr}">${htmlPart}</div>`
+            }
+          }
+          newBlock.innerHTML = outHTML
+          // 保持视图滚动到末尾
+          scrollToBottom()
+        }
+      },
+      onDone: () => {
+        // 完成后去掉外层占位，仅保留内容
+        const w = doc && (doc.querySelector(`div[data-ai-continue-wrapper="${markerId}"]`) as HTMLElement)
+        if (w) {
+          const inner = w.querySelector('[data-ai-continue-new]') as HTMLElement
+          if (inner) w.outerHTML = inner.innerHTML || ''
+          else w.parentNode && w.parentNode.removeChild(w)
+        }
+        continuing.value = false
+        editorInstance.notificationManager.open({ text: 'AI 续写完成', type: 'info', timeout: 1500 })
+      }
+    })
+  } catch (e) {
+    console.error(e)
+    const doc = editorInstance.getDoc()
+    const w = doc && (doc.querySelector('[data-ai-continue-wrapper]') as HTMLElement)
+    if (w) w.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:6px;border-radius:4px;">AI 续写失败，请稍后重试。</div>`
+    continuing.value = false
+    editorInstance.notificationManager.open({ text: 'AI 续写失败，请稍后重试', type: 'error', timeout: 2000 })
+  }
+}
 // AI 润色选中文本
 async function aiPolishSelected() {
     if (polishing.value || !editorInstance) return
@@ -627,6 +763,11 @@ function handleEditorSetup(editor) {
     tooltip: '使用 AI 润色所选文本',
     onAction: aiPolishSelected
   })
+  editor.ui.registry.addButton('aiContinue', {
+    text: 'AI续写',
+    tooltip: '根据当前内容进行续写',
+    onAction: aiContinueWriting
+  })
   editor.ui.registry.addButton('importword', {
     text: '导入Word',
     tooltip: '从 .docx 导入',
@@ -791,7 +932,7 @@ const editorConfig = computed(() => ({
   toolbar_mode: 'wrap',
   toolbar_sticky: true,
   // 选区悬浮工具条，加入 AI润色
-  quickbars_selection_toolbar: 'bold italic underline | aiPolish | forecolor backcolor | link',
+  quickbars_selection_toolbar: 'bold italic underline | aiPolish aiContinue | forecolor backcolor | link',
   
   // 工具栏配置 - 中文界面（兼容 TinyMCE 5/6：同时包含旧/新控件名）
   toolbar: [
@@ -805,8 +946,8 @@ const editorConfig = computed(() => ({
     'link image media table | charmap emoticons',
     // 查看与辅助
     'code preview fullscreen help',
-    // 自定义：导入导出/清空
-    'importword exportword clearcontent',
+    // 自定义：AI / 导入导出/清空
+    'aiContinue aiPolish | importword exportword clearcontent',
     // 额外：文件/编辑类（若无效可移除）
     'print save saveas cancel new edit delete cut copy pasteword selectall'
   ].join(' | '),

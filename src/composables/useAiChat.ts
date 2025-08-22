@@ -63,6 +63,33 @@ const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学
             { role: 'user', content: userContent }
         ];
     }
+
+    /**
+     * 续写提示词
+     * - 场景1：根据全文续写
+     * - 场景2：根据提取的大纲续写
+     */
+    function createContinueMessages(payload: {
+      contextMarkdown: string; // 可为全文或大纲（均为 Markdown）
+      style?: string;          // 写作风格
+      isOutline?: boolean;     // 是否为大纲驱动
+    }) {
+      const selectedStyle = allowedStyles.includes(payload.style || '') ? (payload.style as string) : '中性正式';
+      const systemContent = `你是一个专业的中文写作助手，负责在不重复已有内容的前提下继续写作。请严格遵守：\n` +
+        `1. 仅输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~）。\n` +
+        `2. 严格延续已有内容的结构、语气、术语与格式（标题层级、列表、段落等）。\n` +
+        `3. 续写内容要自然衔接，不要复述或改写已有内容。\n` +
+        `4. 风格采用「${selectedStyle}」。`;
+
+      const userContent = payload.isOutline
+        ? `以下是文章大纲（Markdown）。请基于大纲从最后部分自然续写新的内容，注意不要重复大纲中已有的条目，仅输出正文 Markdown：\n\n${payload.contextMarkdown}`
+        : `以下是文章的已写正文（Markdown）。请从文末自然续写新的内容，保持原有结构与格式，不要重复或改写已有部分，仅输出续写的正文 Markdown：\n\n${payload.contextMarkdown}`;
+
+      return [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: userContent },
+      ];
+    }
   function selectModel(opts?: { reasoning?: boolean; fallback?: string }) {
     const { reasoning = false, fallback = 'deepseek-chat' } = opts || {};
     return reasoning ? 'deepseek-reasoner' : fallback;
@@ -126,5 +153,32 @@ const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学
     });
   }
 
-  return { selectModel, streamChat, polishText };
+  /**
+   * 基于上下文的 AI 续写
+   * @param contextMarkdown 已有内容（或大纲）的 Markdown 文本
+   */
+  async function continueText(contextMarkdown: string, opts?: {
+    sessionId?: string;
+    model?: string;
+    onDelta?: StreamChatParams['onDelta'];
+    onDone?: StreamChatParams['onDone'];
+    style?: string;
+    isOutline?: boolean;
+  }) {
+    const messages = createContinueMessages({
+      contextMarkdown,
+      style: opts?.style || '中性正式',
+      isOutline: Boolean(opts?.isOutline),
+    });
+    return streamChat({
+      sessionId: opts?.sessionId,
+      messages,
+      model: opts?.model || 'deepseek-chat',
+      chatMessageList: [ { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true } ],
+      onDelta: opts?.onDelta,
+      onDone: opts?.onDone,
+    });
+  }
+
+  return { selectModel, streamChat, polishText, continueText };
 }
