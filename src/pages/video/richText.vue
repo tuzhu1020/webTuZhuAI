@@ -107,6 +107,7 @@
 import { ref, defineComponent, h, nextTick } from 'vue';
 import { useChatStore } from '@/stores/chat';
 import { useUserStore } from '@/stores/user';
+import { useAiChat } from '@/composables/useAiChat';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
 import { marked } from 'marked';
 import { Textarea as ATextarea, Button as AButton } from 'ant-design-vue';
@@ -138,6 +139,7 @@ const chatMessageList = ref<any[]>([]);
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
+const { selectModel, streamChat } = useAiChat();
 
 // 将纯文本增量转换为基础 HTML（保持段落/换行）
 // 将 Markdown 流式增量转换成 HTML，保留加粗/斜体/标题/列表等样式
@@ -196,7 +198,7 @@ async function send() {
 
   const sessionId = `richtext-${Date.now()}`;
   // 勾选“深度思考”时切换到 R1 推理模型
-  const model = auto.value ? 'deepseek-reasoner' : 'deepseek-chat';
+  const model = selectModel({ reasoning: auto.value, fallback: 'deepseek-chat' });
 
   // 用于承接流式增量的伪聊天数组（供 store 写入 choices[0]._content）
   chatMessageList.value = [
@@ -204,35 +206,32 @@ async function send() {
   ];
 
   try {
-    const session = await chatStore.startChatSession(sessionId, msg as any, userStore, model);
-    if (!session) throw new Error('会话启动失败');
-
-    // 持续读取流直到完成
-    // 每帧进行一次轮询，避免阻塞 UI
-    const pump = async () => {
-      const done = await chatStore.processChatSession(sessionId, chatMessageList.value as any);
-      const last = chatMessageList.value[chatMessageList.value.length - 1];
-      const content = last?.choices?.[0]?._content || '';
-      const html = mdToHtml(content);
-      // 写作：在原文末尾追加；润色：替换整体
-      richText.value = mode.value === 'write' ? `${baseBefore}${html}` : html;
-      await nextTick();
-      
-      // AI 输出时自动滚动到底部
-      if (tinymceRef.value?.scrollToBottom) {
-        tinymceRef.value.scrollToBottom();
-      }
-      // 深度思考面板自动滚动到底部
-      if (thinkRef.value) {
-        thinkRef.value.scrollTop = thinkRef.value.scrollHeight;
-      }
-      if (!done) requestAnimationFrame(pump);
-      else {
+    await streamChat({
+      sessionId,
+      messages: msg as any,
+      model,
+      chatMessageList: chatMessageList.value,
+      onDelta: async ({ chatMessageList }) => {
+        const last = chatMessageList[chatMessageList.length - 1];
+        const content = last?.choices?.[0]?._content || '';
+        const html = mdToHtml(content);
+        // 写作：在原文末尾追加；润色：替换整体
+        richText.value = mode.value === 'write' ? `${baseBefore}${html}` : html;
+        await nextTick();
+        // AI 输出时自动滚动到底部
+        if (tinymceRef.value?.scrollToBottom) {
+          tinymceRef.value.scrollToBottom();
+        }
+        // 深度思考面板自动滚动到底部
+        if (thinkRef.value) {
+          thinkRef.value.scrollTop = thinkRef.value.scrollHeight;
+        }
+      },
+      onDone: async () => {
         messages.value.push({ role: 'assistant', content: '已生成内容，已写入编辑器。' });
         sending.value = false;
-      }
-    };
-    pump();
+      },
+    });
   } catch (e) {
     console.error(e);
     messages.value.push({ role: 'assistant', content: '生成失败，请重试。' });

@@ -1,3 +1,4 @@
+
 <template>
   <div class="edit-box">
     <Editor
@@ -16,6 +17,11 @@
 import { ref, computed, watch, defineProps, defineEmits } from 'vue'
 import Editor from '@tinymce/tinymce-vue'
 import tinymce from 'tinymce/tinymce'
+import { marked } from 'marked'
+import { useChatStore } from '@/stores/chat'
+import { useUserStore } from '@/stores/user'
+import { useAiChat } from '@/composables/useAiChat'
+import { AI_IDENTITY_AI_VALUE } from '@/constant/enum'
 
 // Word 导入/导出支持
 import mammoth from 'mammoth/mammoth.browser'
@@ -33,7 +39,67 @@ const emits = defineEmits(['update:modelValue', 'change', 'input'])
 const editorId = ref(`tinymce-${Date.now()}`)
 const content = ref('')
 let editorInstance = null
+const polishing = ref(false)
+const chatStore = useChatStore()
+const userStore = useUserStore()
+const { polishText } = useAiChat()
+// Markdown 转 HTML（与页面保持一致）
+function mdToHtml(markdown) {
+    if (!markdown) return ''
+    marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false })
+    return marked.parse(markdown)
+}
 
+// AI 润色选中文本
+async function aiPolishSelected() {
+    if (polishing.value || !editorInstance) return
+    const selText = editorInstance.selection.getContent({ format: 'text' }) || ''
+    if (!selText.trim()) {
+        editorInstance.notificationManager.open({ text: '请先选中文本再使用 AI 润色', type: 'warning', timeout: 2000 })
+        return
+    }
+    polishing.value = true
+
+    // 插入占位符，避免用户误操作
+    const markerId = `ai-polish-${Date.now()}`
+    const placeholderHtml = `<span data-ai-polish="${markerId}" style="background:#fff7ed;border:1px dashed #fdba74;padding:2px 4px;border-radius:4px;color:#9a3412;">AI 润色中...</span>`
+    editorInstance.selection.setContent(placeholderHtml)
+
+    // 组织消息（Polish 指令），输出为纯 Markdown
+    const messages = [
+        { role: 'system', content: '你是一个中文写作润色助手。请严格输出「纯 Markdown 文本」，不要使用任何代码围栏（如 ``` 或 ~~~）。保持语义不变，优化逻辑、语法与用词，可适度调整结构。' },
+        { role: 'user', content: `请对以下内容进行智能润色，并仅输出润色后的内容：\n\n${selText}` }
+    ]
+
+    const sessionId = `tinymce-polish-${Date.now()}`
+    const model = 'deepseek-chat'
+
+    try {
+        const list = await polishText(selText, { sessionId, model })
+        const last = list[list.length - 1]
+        const md = last?.choices?.[0]?._content || ''
+        const html = mdToHtml(md)
+        // 用结果替换占位符
+        const doc = editorInstance.getDoc()
+        const node = doc && doc.querySelector(`span[data-ai-polish="${markerId}"]`)
+        if (node) {
+            node.outerHTML = html || selText
+        } else {
+            // 若未找到占位符，直接插入（兜底）
+            editorInstance.selection.setContent(html || selText)
+        }
+        polishing.value = false
+        editorInstance.notificationManager.open({ text: 'AI 润色完成', type: 'info', timeout: 1500 })
+    } catch (e) {
+        console.error(e)
+        // 失败用原文回填
+        const doc = editorInstance.getDoc()
+        const node = doc && doc.querySelector(`span[data-ai-polish="${markerId}"]`)
+        if (node) node.outerHTML = selText
+        polishing.value = false
+        editorInstance.notificationManager.open({ text: 'AI 润色失败，请稍后重试', type: 'error', timeout: 2000 })
+    }
+}
 // 滚动到底部
 function scrollToBottom() {
   if (!editorInstance) return
@@ -157,6 +223,11 @@ function handleEditorSetup(editor) {
   editorInstance = editor
   
   // 添加自定义按钮
+  editor.ui.registry.addButton('aiPolish', {
+    text: 'AI润色',
+    tooltip: '使用 AI 润色所选文本',
+    onAction: aiPolishSelected
+  })
   editor.ui.registry.addButton('importword', {
     text: '导入Word',
     tooltip: '从 .docx 导入',
@@ -320,6 +391,8 @@ const editorConfig = computed(() => ({
   branding: false,
   toolbar_mode: 'wrap',
   toolbar_sticky: true,
+  // 选区悬浮工具条，加入 AI润色
+  quickbars_selection_toolbar: 'bold italic underline | aiPolish | forecolor backcolor | link',
   
   // 工具栏配置 - 中文界面（兼容 TinyMCE 5/6：同时包含旧/新控件名）
   toolbar: [
