@@ -25,7 +25,7 @@
 
             <!-- Middle: AI Panel -->
             <div
-                class="w-[360px] h-[calc(100vh-48px)] shrink-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5]">
+                class="w-[360px] h-[calc(100vh-48px)] flex flex-col  shrink-0 bg-white rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-[#eef0f5]">
                 <!-- Header segmented options -->
                 <div class="px-[12px] pt-[12px] pb-[8px] border-b border-[#eef0f5]">
                     <div class="flex items-center justify-between">
@@ -40,60 +40,9 @@
                     </div>
                 </div>
 
-                <!-- 文案建议 -->
-                <div class="px-[12px] py-[12px]">
-                    <div class="text-[13px] text-[#334155] mb-[8px]">文案建议</div>
-                    <div class="relative">
-                        <input v-model="tip" type="text" placeholder="输入您的创作意图，如主题、语境、风格、受众等"
-                            class="w-full h-[36px] rounded-[6px] border border-[#e5e7eb] px-[10px] text-[13px] text-[#111827] outline-none focus:(border-[#3b5bfd] ring-2 ring-[#e6ecff])" />
-                        <div class="absolute right-[10px] top-[8px] text-[12px] text-[#9ca3af]">{{ tip.length }} / 50
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 文案策略（短/中/长） -->
-                <div class="px-[12px]">
-                    <div class="text-[13px] text-[#334155] mb-[8px]">文案策略</div>
-                    <div class="flex items-center gap-[8px]">
-                        <button :class="len==='short' ? activeChip : chip" @click="len='short'">短</button>
-                        <button :class="len==='mid' ? activeChip : chip" @click="len='mid'">中</button>
-                        <button :class="len==='long' ? activeChip : chip" @click="len='long'">长</button>
-                    </div>
-                </div>
-
-                <!-- 内容要求（复选） -->
-                <div class="px-[12px] mt-[12px]">
-                    <div class="text-[13px] text-[#334155] mb-[8px]">内容要求</div>
-                    <div class="grid grid-cols-2 gap-[8px]">
-                        <label v-for="r in requires" :key="r.key"
-                            class="flex items-center gap-[8px] text-[12px] text-[#4b5563]">
-                            <input type="checkbox" v-model="r.checked" class="w-[14px] h-[14px]" />
-                            <span>{{ r.label }}</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- 大纲/结构块/参考 -->
-                <div class="px-[12px] mt-[12px] flex flex-col gap-[10px]">
-                    <div>
-                        <div class="text-[13px] text-[#334155] mb-[6px]">文档大纲</div>
-                        <button
-                            class="w-full h-[34px] rounded-[6px] border border-[#e5e7eb] text-[13px] text-[#374151] hover:bg-[#f9fafb]">生成大纲</button>
-                    </div>
-                    <div>
-                        <div class="text-[13px] text-[#334155] mb-[6px]">添加结构块</div>
-                        <button
-                            class="w-full h-[34px] rounded-[6px] border border-[#e5e7eb] text-[13px] text-[#374151] hover:bg-[#f9fafb]">添加结构块</button>
-                    </div>
-                    <div>
-                        <div class="text-[13px] text-[#334155] mb-[6px]">添加内容参考</div>
-                        <button
-                            class="w-full h-[34px] rounded-[6px] border border-[#e5e7eb] text-[13px] text-[#374151] hover:bg-[#f9fafb]">添加内容参考</button>
-                    </div>
-                </div>
 
                 <!-- Chat box -->
-                <div class="px-[12px] mt-[12px] flex-1">
+                <div class="px-[12px] mt-[12px] flex-1 flex flex-col min-h-0">
                     <div class="text-[13px] text-[#334155] mb-[8px]">AI 对话</div>
                     <div
                         class="h-[160px] rounded-[6px] border border-[#e5e7eb] p-[8px] overflow-auto text-[12px] text-[#4b5563] bg-[#fcfcfd]">
@@ -102,9 +51,20 @@
                             <div>{{ m.content }}</div>
                         </div>
                     </div>
-                    <div class="mt-[8px] flex items-center gap-[6px]">
-                        <input v-model="input" :disabled="sending" placeholder="向 AI 提问或让其续写"
-                            class="flex-1 h-[34px] rounded-[6px] border border-[#e5e7eb] px-[10px] text-[13px] outline-none focus:(border-[#3b5bfd] ring-2 ring-[#e6ecff]) disabled:(bg-[#f3f4f6] cursor-not-allowed)" />
+                    <!-- 深度思考：展示 reasoning_content 的增量行 -->
+                    <div v-if="auto && chatMessageList.length" class="mt-[8px] flex-1 min-h-0 flex flex-col">
+                        <div class="text-[12px] text-[#334155] mb-[6px]">思考过程</div>
+                        <div
+                            ref="thinkRef"
+                            class="flex-1 min-h-0 overflow-y-auto rounded-[6px] border border-[#e5e7eb] p-[8px]  text-[12px] text-[#64748b] bg-[#fafafa]">
+                            <p v-for="(line, idx) in (chatMessageList[chatMessageList.length-1]?.choices?.[0]?._thinkContent || [])"
+                                :key="idx" class="leading-[1.6] whitespace-pre-wrap ">{{ line }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-[8px] flex flex-col  gap-[6px]">
+                        <ATextarea v-model:value="input" placeholder="给 DeepSeek 输入" autofocus
+                            :autoSize="{ minRows: 2, maxRows: 10 }"
+                            class="max-w-full! min-w-full! w-full! resize-none!  bg-transparent! text-16! " />
                         <button @click="send" :disabled="sending"
                             class="px-[12px] h-[34px] rounded-[6px] bg-[#3b5bfd] text-white text-[13px] disabled:(opacity-60 cursor-not-allowed)">{{
                             sending ? '生成中...' : '发送' }}</button>
@@ -114,7 +74,7 @@
                 <!-- Bottom actions -->
                 <div class="px-[12px] py-[12px] mt-[12px] border-t border-[#eef0f5] flex items-center justify-between">
                     <div class="flex items-center gap-[8px]">
-                        <span class="text-[12px] text-[#6b7280]">AI 连续写作</span>
+                        <span class="text-[12px] text-[#6b7280]">深度思考：</span>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" class="sr-only peer" v-model="auto" />
                             <div
@@ -149,9 +109,11 @@ import { useChatStore } from '@/stores/chat';
 import { useUserStore } from '@/stores/user';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
 import { marked } from 'marked';
+import { Textarea as ATextarea, Button as AButton } from 'ant-design-vue';
 // Tinymce 组件已全局自动引入，无需手动import
 const richText = ref('');
 const tinymceRef = ref();
+const thinkRef = ref<HTMLElement | null>(null);
 
 
 // AI Panel state
@@ -171,6 +133,8 @@ const input = ref('');
 const auto = ref(false);
 const mode = ref<'write' | 'polish'>('write');
 const sending = ref(false);
+// 用于接收 SSE 增量（含 reasoning_content）
+const chatMessageList = ref<any[]>([]);
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
@@ -231,11 +195,12 @@ async function send() {
   ];
 
   const sessionId = `richtext-${Date.now()}`;
-  const model = 'deepseek-chat';
+  // 勾选“深度思考”时切换到 R1 推理模型
+  const model = auto.value ? 'deepseek-reasoner' : 'deepseek-chat';
 
   // 用于承接流式增量的伪聊天数组（供 store 写入 choices[0]._content）
-  const chatMessageList: any[] = [
-    { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true },
+  chatMessageList.value = [
+    { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true, isSpread: true },
   ];
 
   try {
@@ -245,8 +210,8 @@ async function send() {
     // 持续读取流直到完成
     // 每帧进行一次轮询，避免阻塞 UI
     const pump = async () => {
-      const done = await chatStore.processChatSession(sessionId, chatMessageList as any);
-      const last = chatMessageList[chatMessageList.length - 1];
+      const done = await chatStore.processChatSession(sessionId, chatMessageList.value as any);
+      const last = chatMessageList.value[chatMessageList.value.length - 1];
       const content = last?.choices?.[0]?._content || '';
       const html = mdToHtml(content);
       // 写作：在原文末尾追加；润色：替换整体
@@ -256,6 +221,10 @@ async function send() {
       // AI 输出时自动滚动到底部
       if (tinymceRef.value?.scrollToBottom) {
         tinymceRef.value.scrollToBottom();
+      }
+      // 深度思考面板自动滚动到底部
+      if (thinkRef.value) {
+        thinkRef.value.scrollTop = thinkRef.value.scrollHeight;
       }
       if (!done) requestAnimationFrame(pump);
       else {
