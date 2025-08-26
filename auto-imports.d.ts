@@ -8,6 +8,7 @@ export {}
 declare global {
   const $message: typeof import('./src/composables/antMessage')['$message']
   const EffectScope: typeof import('vue')['EffectScope']
+  const aiSessionControl: typeof import('./src/composables/useAiChat')['aiSessionControl']
   const asyncComputed: typeof import('@vueuse/core')['asyncComputed']
   const autoResetRef: typeof import('@vueuse/core')['autoResetRef']
   const computed: typeof import('vue')['computed']
@@ -320,6 +321,7 @@ declare module 'vue' {
   interface ComponentCustomProperties {
     readonly $message: UnwrapRef<typeof import('./src/composables/antMessage')['$message']>
     readonly EffectScope: UnwrapRef<typeof import('vue')['EffectScope']>
+    readonly aiSessionControl: UnwrapRef<typeof import('./src/composables/useAiChat')['aiSessionControl']>
     readonly asyncComputed: UnwrapRef<typeof import('@vueuse/core')['asyncComputed']>
     readonly autoResetRef: UnwrapRef<typeof import('@vueuse/core')['autoResetRef']>
     readonly computed: UnwrapRef<typeof import('vue')['computed']>

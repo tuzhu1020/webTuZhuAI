@@ -43,14 +43,14 @@
 
                 <!-- Chat box -->
                 <div class="px-[12px] mt-[12px] flex-1 flex flex-col min-h-0">
-                    <div class="text-[13px] text-[#334155] mb-[8px]">AI 对话</div>
+                    <!-- <div class="text-[13px] text-[#334155] mb-[8px]">AI 对话</div>
                     <div
                         class="h-[160px] rounded-[6px] border border-[#e5e7eb] p-[8px] overflow-auto text-[12px] text-[#4b5563] bg-[#fcfcfd]">
                         <div v-for="(m,i) in messages" :key="i" class="mb-[6px]">
                             <div class="text-[#6b7280]">{{ m.role === 'user' ? '我' : 'AI' }}</div>
                             <div>{{ m.content }}</div>
                         </div>
-                    </div>
+                    </div> -->
                     <!-- 深度思考：展示 reasoning_content 的增量行 -->
                     <div v-if="auto && chatMessageList.length" class="mt-[8px] flex-1 min-h-0 flex flex-col">
                         <div class="text-[12px] text-[#334155] mb-[6px]">思考过程</div>
@@ -195,19 +195,19 @@ function buildAIMessages(
     const reqs = options.requires && options.requires.length ? options.requires.join('、') : '结构清晰、简洁明了、无错别字';
 
     const systemPrompt = `
-你是一个中文写作助手。
-请严格输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~），不要附加解释或多余文字。
-保留 Markdown 标准语法，包括标题（#）、小结、列表、加粗、斜体、链接等，同时保持结构清晰。
-当用户要求润色时，请在保持语义不变的前提下优化逻辑、语法与用词，可适度调整结构；
-当用户要求写作时，请根据提示内容创作完整中文文本，逻辑清晰、条理分明，可自动生成标题和小节结构，每段尽量围绕一个核心观点。
-可根据 style 参数选择风格：学术、公文、日常、网络、科普、文学、中性正式（默认）。
-`;
+        你是一个中文写作助手。
+        请严格输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~），不要附加解释或多余文字。
+        保留 Markdown 标准语法，包括标题（#）、小结、列表、加粗、斜体、链接等，同时保持结构清晰。
+        当用户要求润色时，请在保持语义不变的前提下优化逻辑、语法与用词，可适度调整结构；
+        当用户要求写作时，请根据提示内容创作完整中文文本，逻辑清晰、条理分明，可自动生成标题和小节结构，每段尽量围绕一个核心观点。
+        可根据 ${selectedStyle} 参数选择风格：学术、公文、日常、网络、科普、文学、中性正式（默认）。
+        `;
 
     let userPrompt = '';
     if (mode === 'polish') {
         userPrompt = `请以「${selectedStyle}」风格对以下内容进行智能润色，保持原始含义，优化逻辑、语法与用词，可适度调整结构；输出为「纯 Markdown 文本」，禁止使用代码块围栏，不要附加解释或说明：\n\n${text}`;
     } else if (mode === 'write') {
-        userPrompt = `请以「${selectedStyle}」风格，根据以下意图生成一段${lenMap[options.len || 'mid']}篇幅的中文内容，逻辑清晰、条理分明；自动生成标题和小节，每段围绕一个核心观点；输出为「纯 Markdown 文本」，禁止使用代码块围栏，不要附加解释或说明：\n` +
+        userPrompt = `请以「${selectedStyle}」风格，严格按照下列“要求”，围绕“意图”创作一段${lenMap[options.len || 'mid']}篇幅的中文内容。请自动生成合适的标题与小节结构；每段围绕一个核心观点；禁止输出任何解释性话语；输出必须为纯 Markdown 文本（不得使用代码块围栏）。\n` +
             `意图：${text}\n` +
             `要求：${reqs}\n` +
             `受众：通用读者。`;
@@ -227,9 +227,11 @@ async function send() {
     if (sending.value) return;
     sending.value = true;
 
+    // 先得到本次要用的意图/文本，避免清空 input 后取不到
+    const intent = mode.value === 'write' ? (tip.value || input.value) : richText.value;
+
     const question = input.value || (mode.value === 'write' ? tip.value : '润色当前文稿');
     messages.value.push({ role: 'user', content: question });
-    input.value = '';
 
     // 本次生成前置内容（用于写作时在末尾续写；润色则整体替换）
     const baseBefore = mode.value === 'write' ? richText.value : '';
@@ -237,13 +239,16 @@ async function send() {
     // 获取用户选择的额外要求
     const reqs = requires.value.filter(r => r.checked).map(r => r.label);
 
-    // 构造 OpenAI 兼容消息
+    // 构造 OpenAI 兼容消息（使用 intent，避免因先清空 input 导致传空）
     const msg = buildAIMessages(
-        mode.value === 'write' ? tip.value || input.value : richText.value,
+        intent,
         style.value,
         mode.value === 'write' ? 'write' : 'polish',
-        { len: len.value, requires: reqs }
+        { len: len.value as any, requires: reqs }
     );
+
+    // 此时再安全地清空输入框
+    input.value = '';
 
     const sessionId = `richtext-${Date.now()}`;
     const model = selectModel({ reasoning: auto.value, fallback: 'deepseek-chat' });
