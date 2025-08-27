@@ -16,7 +16,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, defineProps, defineEmits } from 'vue'
 import Editor from '@tinymce/tinymce-vue'
-import tinymce from 'tinymce/tinymce'
+// 注意：不要同时从 npm 包导入 tinymce 与通过 tinymce-script-src 加载自托管脚本，
+// 否则可能产生多个实例与版本不一致，导致插件内部报错（如读取 isEmpty of undefined）。
 import { useTinymceAI } from './composables/useTinymceAI'
 import { useTinymceWord } from './composables/useTinymceWord'
 import { useTinymceUploader } from './composables/useTinymceUploader'
@@ -61,24 +62,50 @@ function handleEditorSetup(editor: any) {
   editorInstance = editor
 
   // 自定义按钮
+  // 注册自定义图标（模拟 Ant Design Outlined 风格，使用 currentColor）
+  editor.ui.registry.addIcon('ant-arrow-up',
+    '<svg viewBox="0 0 1024 1024" width="16" height="16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">\
+      <path d="M512 128l-288 288h176v384h224V416h176L512 128z"/>\
+    </svg>'
+  )
+  editor.ui.registry.addIcon('ant-arrow-down',
+    '<svg viewBox="0 0 1024 1024" width="16" height="16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">\
+      <path d="M512 896l288-288H624V224H400v384H224l288 288z"/>\
+    </svg>'
+  )
+  editor.ui.registry.addIcon('ant-edit',
+    '<svg viewBox="0 0 1024 1024" width="16" height="16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">\
+      <path d="M880 240L784 144 328 600l-32 128 128-32 456-456zM272 760l-24 96 96-24z"/>\
+    </svg>'
+  )
+  editor.ui.registry.addIcon('ant-undo',
+    '<svg viewBox="0 0 1024 1024" width="16" height="16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">\
+      <path d="M256 320V160L64 352l192 192V416c256 0 448 96 448 288 0 56-16 104-48 144 112-64 176-168 176-288 0-256-240-352-576-352z"/>\
+    </svg>'
+  )
+
   editor.ui.registry.addButton('aiPolish', {
-    text: 'AI润色',
+    text: '润色',
     tooltip: '使用 AI 润色所选文本',
+    icon: 'ant-undo',
     onAction: aiPolishSelected
   })
   editor.ui.registry.addButton('aiContinue', {
-    text: 'AI续写',
+    text: '续写',
     tooltip: '根据当前内容进行续写',
-    onAction: aiContinueWriting
+    icon: 'ant-edit',
+    onAction: () => aiContinueWriting({ model: 'deepseek-chat', style: '学术' })
   })
   editor.ui.registry.addButton('importword', {
-    text: '导入Word',
+    text: '上传',
     tooltip: '从 .docx 导入',
+    icon: 'ant-arrow-up',
     onAction: handleImportWord
   })
   editor.ui.registry.addButton('exportword', {
-    text: '导出Word',
+    text: '下载',
     tooltip: '导出为 .docx',
+    icon: 'ant-arrow-down',
     onAction: handleExportWord
   })
   // 如需暴露“清空”按钮可打开

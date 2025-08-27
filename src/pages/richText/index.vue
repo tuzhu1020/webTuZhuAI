@@ -110,6 +110,7 @@ import { useAiChat } from '@/composables/useAiChat';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
 import { marked } from 'marked';
 import { Textarea as ATextarea, Button as AButton } from 'ant-design-vue';
+import queryDocuments, { type KBDocItem } from '@/service/knowledge/queryDocumentsService';
 // Tinymce 组件已全局自动引入，无需手动import
 const richText = ref('');
 const tinymceRef = ref();
@@ -181,6 +182,25 @@ function mdToHtml(markdown: string) {
 // }
 const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学', '中性正式'];
 
+// 从意图/文本查询知识库
+async function fetchKnowledge(question: string): Promise<KBDocItem[]> {
+  try {
+    const docs = await queryDocuments(question);
+    return Array.isArray(docs) ? docs : [];
+  } catch (e) {
+    console.warn('知识库查询失败:', e);
+    return [];
+  }
+}
+
+// 构造参考片段（不包含来源/链接）
+function buildKbRefs(docs: KBDocItem[]): string {
+  if (!docs?.length) return '';
+  return docs.slice(0, 8)
+    .map((d, i) => `【${i + 1}】${(d.text || '').trim()}`)
+    .join('\n');
+}
+
 /**
  * 构建 AI 消息体
  */
@@ -188,7 +208,8 @@ function buildAIMessages(
     text: string,
     style: string = '中性正式',
     mode: 'polish' | 'write' = 'polish',
-    options: { len?: 'short' | 'mid' | 'long'; requires?: string[] } = {}
+    options: { len?: 'short' | 'mid' | 'long'; requires?: string[] } = {},
+    refs?: string
 ) {
     const selectedStyle = allowedStyles.includes(style) ? style : '中性正式';
     const lenMap: Record<string, string> = { short: '简短', mid: '适中', long: '较长' };
@@ -201,16 +222,18 @@ function buildAIMessages(
         当用户要求润色时，请在保持语义不变的前提下优化逻辑、语法与用词，可适度调整结构；
         当用户要求写作时，请根据提示内容创作完整中文文本，逻辑清晰、条理分明，可自动生成标题和小节结构，每段尽量围绕一个核心观点。
         可根据 ${selectedStyle} 参数选择风格：学术、公文、日常、网络、科普、文学、中性正式（默认）。
+        可参考提供的片段进行处理，但请不要在输出中标注任何来源、链接或序号。
         `;
 
     let userPrompt = '';
+    const refsSection = refs ? `\n\n参考片段：\n\n${refs}\n\n` : '\n\n';
     if (mode === 'polish') {
-        userPrompt = `请以「${selectedStyle}」风格对以下内容进行智能润色，保持原始含义，优化逻辑、语法与用词，可适度调整结构；输出为「纯 Markdown 文本」，禁止使用代码块围栏，不要附加解释或说明：\n\n${text}`;
+        userPrompt = `请以「${selectedStyle}」风格${refs ? '参考以下片段' : ''}对以下内容进行智能润色，保持原始含义，优化逻辑、语法与用词，可适度调整结构；输出为「纯 Markdown 文本」，禁止使用代码块围栏，不要附加解释或说明：${refsSection}${text}`;
     } else if (mode === 'write') {
         userPrompt = `请以「${selectedStyle}」风格，严格按照下列“要求”，围绕“意图”创作一段${lenMap[options.len || 'mid']}篇幅的中文内容。请自动生成合适的标题与小节结构；每段围绕一个核心观点；禁止输出任何解释性话语；输出必须为纯 Markdown 文本（不得使用代码块围栏）。\n` +
             `意图：${text}\n` +
             `要求：${reqs}\n` +
-            `受众：通用读者。`;
+            `受众：通用读者。${refsSection}`;
     }
 
     return [
@@ -239,12 +262,17 @@ async function send() {
     // 获取用户选择的额外要求
     const reqs = requires.value.filter(r => r.checked).map(r => r.label);
 
+    // 查询知识库并构造参考片段
+    const docs = await fetchKnowledge(intent);
+    const refs = buildKbRefs(docs);
+
     // 构造 OpenAI 兼容消息（使用 intent，避免因先清空 input 导致传空）
     const msg = buildAIMessages(
         intent,
         style.value,
         mode.value === 'write' ? 'write' : 'polish',
-        { len: len.value as any, requires: reqs }
+        { len: len.value as any, requires: reqs },
+        refs
     );
 
     // 此时再安全地清空输入框

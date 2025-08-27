@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { marked } from 'marked'
 import { useAiChat, aiSessionControl } from '@/composables/useAiChat'
+import { $message } from "@/composables/antMessage";
 /**
  * TinyMCE AI 写作/润色相关组合式函数与工具。
  * - 提供续写与选中文本润色两大功能，支持会话暂停。
@@ -26,6 +27,8 @@ export function useTinymceAI(getEditor: () => any) {
   const polishPausedNotified = ref(false)
   const continuePausedNotified = ref(false)
   const { polishText, continueText } = useAiChat()
+  // 流式增量内容缓冲：按会话累积（解决某些后端只返回增量切片的问题）
+  const polishStreamBuffer = new Map<string, string>()
 
   /**
    * 将 Markdown 转换为 HTML（启用 GFM、软换行，禁用 headerIds/mangle）。
@@ -111,6 +114,14 @@ export function useTinymceAI(getEditor: () => any) {
       continuePausedNotified.value = false
       const html = editor.getContent() || ''
       const plain = editor.getContent({ format: 'text' }) || ''
+      if (!plain.trim()) {
+      editor.notificationManager.open({ text: '请先填写文本再使用 AI 续写', type: 'warning', timeout: 2000 })
+        // $message.warning('请先填写文本再使用 AI 续写')
+        continuing.value = false
+        continuePausedNotified.value = true
+        return
+    }
+      
       const MAX_LEN = 6000
       // 判断是否超长，超长则提取大纲用于压缩上下文
       const useOutline = plain.length > MAX_LEN
@@ -214,23 +225,26 @@ export function useTinymceAI(getEditor: () => any) {
                 <button data-ai-continue-choose="reject" style="padding:4px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#ffffff;color:#334155;cursor:pointer;">放弃续写</button>
                 <button data-ai-continue-choose="accept" style="padding:4px 10px;border:1px solid #22c55e;border-radius:4px;background:#22c55e;color:#ffffff;cursor:pointer;">插入续写</button>
               `)
-              const onChoose = (e: any) => {
-                e.preventDefault(); e.stopPropagation();
-                const btn = e.currentTarget as HTMLElement
-                const type = btn?.getAttribute('data-ai-continue-choose')
+               // 使用事件委托，防止 TinyMCE 内部重绘导致直绑事件丢失
+              const docView = (w as any).ownerDocument as Document
+              const delegated = (e: Event) => {
+                const target = e.target as Element | null
+                const btn = target && (target.closest('button[data-ai-continue-choose]') as HTMLElement | null)
+                if (!btn) return
+                if (!w.contains(btn)) return
+                e.preventDefault(); (e as any).stopPropagation?.()
+                const type = btn.getAttribute('data-ai-continue-choose')
                 const inner = w.querySelector('[data-ai-continue-new]') as HTMLElement
                 if (type === 'accept') {
                   if (inner) w.outerHTML = inner.innerHTML || ''
                   else w.parentNode && w.parentNode.removeChild(w)
                 } else {
-                  // 放弃：移除预览容器
                   w.parentNode && w.parentNode.removeChild(w)
                 }
+                // 处理完成后移除委托监听，避免泄漏
+                docView.removeEventListener('click', delegated, true)
               }
-              const btnReject = actions.querySelector('button[data-ai-continue-choose="reject"]')
-              const btnAccept = actions.querySelector('button[data-ai-continue-choose="accept"]')
-              btnReject && btnReject.addEventListener('click', onChoose, { once: true })
-              btnAccept && btnAccept.addEventListener('click', onChoose, { once: true })
+              docView.addEventListener('click', delegated, true)
             }
           }
           continuing.value = false
@@ -511,13 +525,19 @@ export function useTinymceAI(getEditor: () => any) {
     }
 
     try {
+      // 初始化当前会话的流式缓冲
+      polishStreamBuffer.set(sessionId, '')
       await polishText(selText, {
         sessionId,
         model,
         onDelta: ({ chatMessageList }) => {
           const last = chatMessageList[chatMessageList.length - 1]
-          const md = last?.choices?.[0]?._content || ''
-          const html = mdToHtml(md)
+          const mdIncoming = last?.choices?.[0]?._content || ''
+          // 合并为累计文本：若新内容以旧内容为前缀，采用新内容；否则做简单拼接
+          const prev = polishStreamBuffer.get(sessionId) || ''
+          const merged = mdIncoming.startsWith(prev) ? mdIncoming : (prev + mdIncoming)
+          polishStreamBuffer.set(sessionId, merged)
+          const html = mdToHtml(merged)
           const doc2 = editor.getDoc()
           const wrap2 = doc2 && doc2.querySelector(`div[data-ai-polish-wrapper="${markerId}"]`)
           const newBlock2 = wrap2 && (wrap2.querySelector('div[data-ai-polish-new]') as HTMLElement)
@@ -526,6 +546,9 @@ export function useTinymceAI(getEditor: () => any) {
             let preview = html || selText
             const tmp = doc2.createElement('div')
             tmp.innerHTML = preview
+            // 在任何 DOM 迁移前记录原始文本长度和 HTML 快照，便于后续兜底对比
+            const srcHtmlSnapshot = tmp.innerHTML
+            const srcTextLen = (tmp.textContent || '').replace(/\s+/g, '').length
             // 去除我们为了 UI 包裹添加的 data-ai-* 容器，避免被写回编辑器
             const unwrapList = tmp.querySelectorAll('[data-ai-polish-wrapper], [data-ai-polish-original], [data-ai-polish-new], [data-ai-polish-actions]')
             unwrapList.forEach((el) => {
@@ -567,8 +590,37 @@ export function useTinymceAI(getEditor: () => any) {
                     if ((id && ids.has(id)) || (nm && names.has(nm))) (el.parentNode as any)?.removeChild(el as any)
                   })
                 }
-                while (tmp.firstChild) cloned.appendChild(tmp.firstChild)
-                newBlock2.innerHTML = cloned.outerHTML
+                // 如果原容器是 <p> 且新内容包含多个块级元素，避免将块级元素嵌入 <p> 导致内容丢失
+                const refTag = styleRefEl.tagName.toUpperCase()
+                const topCount = tmp.children.length
+                const firstTop = tmp.firstElementChild?.tagName.toUpperCase()
+                const blockTags = new Set(['P','DIV','UL','OL','LI','H1','H2','H3','H4','H5','H6','TABLE','BLOCKQUOTE','PRE','SECTION','ARTICLE'])
+                const hasMultiBlocks = topCount > 1 || (!!firstTop && blockTags.has(firstTop))
+                let resultHtml = ''
+                // 为避免 TinyMCE 在 <p> 中吞掉块级元素，原容器为 P 时一律改用 DIV 承载
+                if (refTag === 'P') {
+                  const wrapDiv = doc2.createElement('div')
+                  const inlineStyle = styleRefEl.getAttribute('style') || ''
+                  if (inlineStyle) wrapDiv.setAttribute('style', inlineStyle)
+                  preserved.forEach((a) => wrapDiv.appendChild(a.cloneNode(true)))
+                  while (tmp.firstChild) wrapDiv.appendChild(tmp.firstChild)
+                  resultHtml = wrapDiv.outerHTML
+                } else {
+                  while (tmp.firstChild) cloned.appendChild(tmp.firstChild)
+                  resultHtml = cloned.outerHTML
+                }
+                // 安全兜底：若结果文本显著短于原解析文本，则回退为直接使用解析后的 HTML
+                try {
+                  const probe = doc2.createElement('div')
+                  probe.innerHTML = resultHtml
+                  const builtLen = (probe.textContent || '').replace(/\s+/g, '').length
+                  const rawLen = srcTextLen
+                  if (rawLen > 0 && builtLen < Math.max(10, Math.floor(rawLen * 0.5))) {
+                    // 回退为原解析 HTML（未迁移前的快照），确保内容不丢失
+                    resultHtml = srcHtmlSnapshot
+                  }
+                } catch {}
+                newBlock2.innerHTML = resultHtml
               } else {
                 newBlock2.innerHTML = tmp.innerHTML
               }
@@ -673,7 +725,16 @@ export function useTinymceAI(getEditor: () => any) {
                   }
                 }
 
-                newBlock2.innerHTML = mapped.join('')
+                // 映射结果
+                let mappedHtml = mapped.join('')
+                // Fallback：若映射结果为空或明显过短，回退到直接使用解析后的 HTML
+                const builtProbe = doc2.createElement('div')
+                builtProbe.innerHTML = mappedHtml
+                const builtLen = (builtProbe.textContent || '').replace(/\s+/g, '').length
+                if (!mappedHtml || builtLen < Math.max(10, Math.floor(srcTextLen * 0.5))) {
+                  mappedHtml = tmp.innerHTML
+                }
+                newBlock2.innerHTML = mappedHtml
               } else {
                 const view = (wrap2 as any).ownerDocument?.defaultView
                 if (view) {
@@ -692,9 +753,11 @@ export function useTinymceAI(getEditor: () => any) {
                     .filter(([, v]) => v && v !== 'normal' && v !== '400')
                     .map(([k, v]) => `${k}: ${v}`)
                     .join('; ')
-                  newBlock2.innerHTML = `<div style="${styleStr}">${tmp.innerHTML}</div>`
+                  // 若 tmp 为空，避免写入空
+                  const inner = tmp.innerHTML || (tmp.textContent || '')
+                  newBlock2.innerHTML = `<div style="${styleStr}">${inner}</div>`
                 } else {
-                  newBlock2.innerHTML = tmp.innerHTML
+                  newBlock2.innerHTML = tmp.innerHTML || (tmp.textContent || '')
                 }
               }
             }
@@ -706,6 +769,20 @@ export function useTinymceAI(getEditor: () => any) {
             const doc3 = editor.getDoc()
             const wrap3 = doc3 && doc3.querySelector(`div[data-ai-polish-wrapper="${markerId}"]`)
             if (wrap3) {
+              // 在完成时，用缓冲的完整内容强制刷新一次预览，避免最后一次 onDelta 未覆盖完全
+              try {
+                const fullMd = polishStreamBuffer.get(sessionId) || ''
+                if (fullMd) {
+                  const htmlFull = mdToHtml(fullMd)
+                  const tmpFull = doc3.createElement('div')
+                  tmpFull.innerHTML = htmlFull
+                  const newBlockFull = wrap3.querySelector('div[data-ai-polish-new]') as HTMLElement | null
+                  if (newBlockFull) {
+                    // 直接将解析后的 HTML 写入预览（保持与 onDelta 的清理一致的包裹结构已在 onDelta 处理过，这里兜底覆盖）
+                    newBlockFull.innerHTML = tmpFull.innerHTML
+                  }
+                }
+              } catch {}
               // 完成后移除“暂停本次润色”按钮
               const pauseBtn = wrap3.querySelector('button[data-ai-polish-pause]') as HTMLElement | null
               if (pauseBtn) pauseBtn.remove()
@@ -751,8 +828,23 @@ export function useTinymceAI(getEditor: () => any) {
                             if ((id && ids.has(id)) || (nm && names.has(nm))) el.parentNode?.removeChild(el as any)
                           })
                         }
-                        while (tmp.firstChild) cloned.appendChild(tmp.firstChild)
-                        replaceWith = cloned.outerHTML
+                        // 如果原容器是 <p> 且新内容包含多个块级元素，避免将块级元素嵌入 <p> 导致内容丢失
+                        const refTag = styleRefEl.tagName.toUpperCase()
+                        const topCount = tmp.children.length
+                        const firstTop = tmp.firstElementChild?.tagName.toUpperCase()
+                        const blockTags = new Set(['P','DIV','UL','OL','LI','H1','H2','H3','H4','H5','H6','TABLE','BLOCKQUOTE','PRE','SECTION','ARTICLE'])
+                        const hasMultiBlocks = topCount > 1 || (!!firstTop && blockTags.has(firstTop))
+                        if (refTag === 'P' && hasMultiBlocks) {
+                          const wrapDiv = doc.createElement('div')
+                          const inlineStyle = styleRefEl.getAttribute('style') || ''
+                          if (inlineStyle) wrapDiv.setAttribute('style', inlineStyle)
+                          preserved.forEach((a) => wrapDiv.appendChild(a.cloneNode(true)))
+                          while (tmp.firstChild) wrapDiv.appendChild(tmp.firstChild)
+                          replaceWith = wrapDiv.outerHTML
+                        } else {
+                          while (tmp.firstChild) cloned.appendChild(tmp.firstChild)
+                          replaceWith = cloned.outerHTML
+                        }
                       }
                     } else {
                       const docView = (wrap3 as any).ownerDocument?.defaultView
@@ -868,7 +960,16 @@ export function useTinymceAI(getEditor: () => any) {
                               if (targetIdx >= 0) assignToIndex(targetIdx, rawHtml)
                             }
                           }
-                          replaceWith = mapped.join('')
+                          // 构造映射结果并做长度兜底
+                          let mappedHtml = mapped.join('')
+                          const builtProbe = doc.createElement('div')
+                          builtProbe.innerHTML = mappedHtml
+                          const builtLen = (builtProbe.textContent || '').replace(/\s+/g, '').length
+                          const rawLen = (tmp.textContent || '').replace(/\s+/g, '').length
+                          if (!mappedHtml || builtLen < Math.max(10, Math.floor(rawLen * 0.5))) {
+                            mappedHtml = tmp.innerHTML
+                          }
+                          replaceWith = mappedHtml
                         } else if (docView) {
                           const cs = docView.getComputedStyle(orig)
                           const styleMap: Record<string, string> = {
@@ -884,7 +985,8 @@ export function useTinymceAI(getEditor: () => any) {
                             .filter(([, v]) => v && v !== 'normal' && v !== '400')
                             .map(([k, v]) => `${k}: ${v}`)
                             .join('; ')
-                          replaceWith = `<div style="${styleStr}">${replaceWith}</div>`
+                          const inner = tmp.innerHTML || (tmp.textContent || replaceWith)
+                          replaceWith = `<div style="${styleStr}">${inner}</div>`
                         }
                       }
                     }
@@ -897,6 +999,8 @@ export function useTinymceAI(getEditor: () => any) {
               }
             }
           } catch {}
+          // 清理缓冲
+          polishStreamBuffer.delete(sessionId)
           polishing.value = false
           const paused = aiSessionControl.isPaused(sessionId)
           if (!(paused && polishPausedNotified.value)) {

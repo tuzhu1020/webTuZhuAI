@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { useChatStore } from '@/stores/chat';
 import { useUserStore } from '@/stores/user';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
+import queryDocuments, { type KBDocItem } from '@/service/knowledge/queryDocumentsService';
 
 // 简单的会话控制器：用于在外部触发“暂停”某次流式会话
 export const aiSessionControl = {
@@ -31,6 +32,31 @@ export function useAiChat() {
   // 允许的风格列表
   const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学', '中性正式'];
 
+  // 从用户问题查询知识库
+  async function fetchKnowledge(question: string): Promise<KBDocItem[]> {
+    try {
+      const docs = await queryDocuments(question);
+      return Array.isArray(docs) ? docs : [];
+    } catch (e) {
+      console.warn('知识库查询失败:', e);
+      return [];
+    }
+  }
+
+  // 构造系统提示，指导模型基于知识库回答
+  function buildKbSystemMessage(docs: KBDocItem[]) {
+    if (!docs?.length) return null as any;
+    const top = docs.slice(0, 8);
+    const refs = top
+      .map((d, i) => `【${i + 1}】${(d.text || '').trim()}`)
+      .join('\n');
+    // const content = `你将基于以下知识库参考片段进行回答，要求：\n- 以中文作答，优先依据参考片段内容，确保准确且不臆造。\n- 如参考片段未覆盖用户问题，明确说明“未在知识库中找到直接依据”，再给出一般性建议。\n- 优先引用要点，可在文末以【序号】标注引用来源。\n\n参考片段：\n${refs}`;
+    // return { role: 'system', content };
+    console.log('知识库参考片段：', refs);
+    
+    return refs
+  }
+
   /**
    * 生成 AI 消息体
    * @param {string} text - 要处理的文本
@@ -38,31 +64,27 @@ export function useAiChat() {
    * @param {'润色'|'写作'} mode - 模式，润色或智能写作
    * @returns {Array} messages - AI 请求消息数组
    */
-  function createAIMessages(text, style = '中性正式', mode = '润色') {
+  function createAIMessages(text, style = '中性正式', mode = '润色',refs:string) {
     const selectedStyle = allowedStyles.includes(style) ? style : '中性正式';
     // system 提示词
     const systemContent = `
-      你是一个专业的中文写作助手。请严格遵守以下规则：
+      你是一个关于法律相关专业的中文写作助手。请严格遵守以下规则：
       1. 输出内容必须是「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~）。
       2. 保持原文语义不变，但要优化语法、逻辑、用词与表达流畅度，可适度调整结构使其更自然。
       3. 必须保留 Markdown 格式和排版（如标题、列表、引用等），只润色文字或生成内容，不改变结构。
       4. 禁止添加任何额外说明、解释或多余文字，只输出正文内容。
       5. 根据用户提供的写作风格参数进行处理，若无参数或参数无效则默认采用「中性正式」风格。
-      - 学术：用词严谨，逻辑缜密，避免口语化。
-      - 公文：简洁规范，客观正式，强调逻辑与权威感。
-      - 日常：自然流畅，轻松易懂，贴近日常表达。
-      - 网络：轻快活泼，可适度使用流行语。
-      - 科普：通俗易懂，适合非专业读者理解。
-      - 文学：优美生动，富有表现力，可增加修辞与文采。
-      - 中性正式（默认）：保持客观、清晰，不偏向任何特殊语气。
+      6. 当文档信息不完整，可以结合模型知识补充，要尽可能的详细, 请勿省略。
+      7. 可参考提供的片段进行处理，但请不要在输出中标注任何来源、链接或序号。
     `;
 
     // user 提示词，根据模式区分
     let userContent = '';
+    const refsSection = refs ? `\n\n参考片段：\n\n${refs}\n\n` : '\n\n';
     if (mode === '润色') {
-      userContent = `请以「${selectedStyle}」风格对以下内容进行智能润色，并仅输出润色结果：\n\n${text}`;
+      userContent = `请以「${selectedStyle}」风格，${refs ? '参考以下片段：' : ''}${refsSection}对以下内容进行智能润色，并仅输出润色后的正文（不要标注来源或序号）：\n\n${text}`;
     } else if (mode === '写作') {
-      userContent = `请以「${selectedStyle}」风格，根据以下主题/要求生成完整中文内容，并仅输出正文 Markdown：\n\n${text}`;
+      userContent = `请以「${selectedStyle}」风格，基于以下主题${refs ? '与参考片段' : ''}生成完整中文内容，并仅输出正文 Markdown（不要标注来源或序号）：\n\n主题：${text}${refsSection}`;
     }
 
     return [
@@ -79,17 +101,20 @@ export function useAiChat() {
   function createContinueMessages(payload: {
     contextMarkdown: string; // 可为全文或大纲（均为 Markdown）
     style?: string;          // 写作风格
-    isOutline?: boolean;     // 是否为大纲驱动
+    isOutline?: boolean;  // 是否为大纲驱动
+    refs?: string;         // 参考片段
   }) {
     const selectedStyle = allowedStyles.includes(payload.style || '') ? (payload.style as string) : '中性正式';
     const systemContent = `你是一个专业的中文写作助手，负责在不重复已有内容的前提下继续写作。请严格遵守：\n` +
       `1. 仅输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~）。\n` +
       `2. 严格延续已有内容的结构、语气、术语与格式（标题层级、列表、段落等）。\n` +
       `3. 续写内容要自然衔接，不要复述或改写已有内容。\n` +
-      `4. 风格采用「${selectedStyle}」。`;
+      `4. 风格采用「${selectedStyle}」。\n` +
+      `5. 可参考提供的片段进行续写，但请不要在输出中标注任何来源、链接或序号。`;
+    const refsText = payload.refs ? `\n\n参考片段：\n\n${payload.refs}` : '';
     const userContent = payload.isOutline
-      ? `以下是文章大纲（Markdown）。请基于大纲从最后部分自然续写新的内容，注意不要重复大纲中已有的条目，仅输出正文 Markdown：\n\n${payload.contextMarkdown}`
-      : `以下是文章的已写正文（Markdown）。请从文末自然续写新的内容，保持原有结构与格式，不要重复或改写已有部分，仅输出续写的正文 Markdown：\n\n${payload.contextMarkdown}`;
+      ? `以下是文章大纲（Markdown）。请基于大纲从最后部分自然续写新的内容，注意不要重复大纲中已有的条目，仅输出正文 Markdown（不要标注来源或序号）：\n\n${payload.contextMarkdown}${refsText}`
+      : `以下是文章的已写正文（Markdown）。请从文末自然续写新的内容，保持原有结构与格式，不要重复或改写已有部分，仅输出续写的正文 Markdown（不要标注来源或序号）：\n\n${payload.contextMarkdown}${refsText}`;
 
     return [
       { role: 'system', content: systemContent },
@@ -115,7 +140,7 @@ export function useAiChat() {
       params.messages as any,
       userStore,
       model,
-      params.docs ?? null,
+      params.docs || null,
     );
     if (!session) throw new Error('会话启动失败');
 
@@ -154,7 +179,9 @@ export function useAiChat() {
     //   { role: 'system', content: '你是一个中文写作润色助手。请严格输出「纯 Markdown 文本」，不要使用任何代码围栏（如 ``` 或 ~~~）。保持语义不变，优化逻辑、语法与用词，可适度调整结构。' },
     //   { role: 'user', content: `请对以下内容进行智能润色，并仅输出润色后的内容：\n\n${text}` },
     // ];
-    const messages = createAIMessages(text, style, model);
+    const docs = await fetchKnowledge(text);
+    const refs = buildKbSystemMessage(docs);
+    const messages = createAIMessages(text, style, '润色', refs);
     return streamChat({
       sessionId: opts?.sessionId,
       messages,
@@ -177,10 +204,13 @@ export function useAiChat() {
     style?: string;
     isOutline?: boolean;
   }) {
+    const docs = await fetchKnowledge(contextMarkdown);
+    const refs = buildKbSystemMessage(docs);
     const messages = createContinueMessages({
       contextMarkdown,
       style: opts?.style || '中性正式',
       isOutline: Boolean(opts?.isOutline),
+      refs
     });
     return streamChat({
       sessionId: opts?.sessionId,
