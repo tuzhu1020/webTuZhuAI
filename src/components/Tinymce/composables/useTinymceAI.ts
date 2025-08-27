@@ -1,12 +1,24 @@
 import { ref } from 'vue'
 import { marked } from 'marked'
 import { useAiChat, aiSessionControl } from '@/composables/useAiChat'
-
+/**
+ * TinyMCE AI 写作/润色相关组合式函数与工具。
+ * - 提供续写与选中文本润色两大功能，支持会话暂停。
+ * - 将 Markdown 的流式增量转换为 HTML，并尽量继承编辑区样式，保证视觉一致。
+ * - 长文场景自动抽取文档大纲作为上下文，降低 tokens 压力。
+ */
 export interface AiOptions {
+  /** AI 输出风格偏好，如“公文”“学术”等 */
   style?: string
+  /** 指定使用的模型名称，默认 deepseek-chat */
   model?: string
 }
 
+/**
+ * 提供 TinyMCE 的 AI 能力入口。
+ * @param getEditor 获取 TinyMCE 实例的方法
+ * @returns polishing/continuing 状态以及 aiContinueWriting、aiPolishSelected 等方法
+ */
 export function useTinymceAI(getEditor: () => any) {
   const polishing = ref(false)
   const continuing = ref(false)
@@ -15,17 +27,27 @@ export function useTinymceAI(getEditor: () => any) {
   const continuePausedNotified = ref(false)
   const { polishText, continueText } = useAiChat()
 
+  /**
+   * 将 Markdown 转换为 HTML（启用 GFM、软换行，禁用 headerIds/mangle）。
+   */
   function mdToHtml(markdown: string) {
     if (!markdown) return ''
     marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false })
     return marked.parse(markdown)
   }
 
+  /**
+   * 从 HTML 内容抽取概要 Markdown：
+   * - 将 h1~h6 转为带 # 的标题行
+   * - li/p 的文本转为列表项（p 仅取首句或前 60 字）
+   * - 主要用于长文续写时的上下文压缩
+   */
   function htmlToOutlineMarkdown(html: string) {
     try {
       const div = document.createElement('div')
       div.innerHTML = html || ''
       const lines: string[] = []
+      // 深度优先遍历 DOM，抽取标题、列表、段落的概览文本
       const walk = (node: Element) => {
         const tag = node.tagName ? node.tagName.toLowerCase() : ''
         if (/^h[1-6]$/.test(tag)) {
@@ -38,6 +60,7 @@ export function useTinymceAI(getEditor: () => any) {
         } else if (tag === 'p') {
           const text = (node.textContent || '').replace(/\s+/g, ' ').trim()
           if (text) {
+            // 仅取首句，避免上下文过长；若无句号则截断前 60 字符
             const firstSentence = text.split(/(?<=[。！？!?\.])\s+/)[0] || text.slice(0, 60)
             lines.push('- ' + firstSentence)
           }
@@ -51,6 +74,9 @@ export function useTinymceAI(getEditor: () => any) {
     }
   }
 
+  /**
+   * 滚动编辑器至底部，并将光标置于文末。
+   */
   function scrollToBottom() {
     const editor = getEditor()
     if (!editor) return
@@ -68,6 +94,15 @@ export function useTinymceAI(getEditor: () => any) {
     }
   }
 
+  /**
+   * AI 续写整篇文档（或基于大纲续写）。
+   * 流程：
+   * 1) 获取全文纯文本，超过阈值则改用大纲作为上下文；
+   * 2) 在文末插入预览区块，并支持“暂停本次续写”；
+   * 3) 流式接收 Markdown，转换为 HTML 并继承参考样式；
+   * 4) 完成后将预览区块替换为最终内容。
+   * @param options 可选：style 风格、model 模型
+   */
   async function aiContinueWriting(options?: AiOptions) {
     const editor = getEditor()
     if (continuing.value || !editor) return
@@ -77,6 +112,7 @@ export function useTinymceAI(getEditor: () => any) {
       const html = editor.getContent() || ''
       const plain = editor.getContent({ format: 'text' }) || ''
       const MAX_LEN = 6000
+      // 判断是否超长，超长则提取大纲用于压缩上下文
       const useOutline = plain.length > MAX_LEN
       const contextMarkdown = useOutline ? htmlToOutlineMarkdown(html) : (() => editor.getContent({ format: 'text' }) || '')()
 
@@ -91,6 +127,7 @@ export function useTinymceAI(getEditor: () => any) {
       const styleRef = (function findStyleRef() {
         let el = body && (body.lastElementChild as HTMLElement)
         while (el && ['BR'].includes(el.tagName)) el = el.previousElementSibling as any
+        // 选取文末的一个元素作为样式参考，便于让 AI 续写内容继承现有排版
         return el as HTMLElement
       })()
 
@@ -143,6 +180,7 @@ export function useTinymceAI(getEditor: () => any) {
               const view = (w as any).ownerDocument?.defaultView
               if (view) {
                 const cs = view.getComputedStyle(styleRef)
+                // 继承周围文本的样式，保证新增内容视觉一致
                 const styleMap: Record<string, string> = {
                   'font-family': cs.fontFamily,
                   'font-size': cs.fontSize,
@@ -164,16 +202,41 @@ export function useTinymceAI(getEditor: () => any) {
           }
         },
         onDone: () => {
+          // 生成完成：在操作区插入“是否插入续写内容”的选择按钮，默认不自动写回
           const w = doc && (doc.querySelector(`div[data-ai-continue-wrapper="${markerId}"]`) as HTMLElement)
           if (w) {
-            const inner = w.querySelector('[data-ai-continue-new]') as HTMLElement
-            if (inner) w.outerHTML = inner.innerHTML || ''
-            else w.parentNode && w.parentNode.removeChild(w)
+            // 完成后移除“暂停本次续写”按钮
+            const pauseBtn = w.querySelector('button[data-ai-continue-pause]') as HTMLElement | null
+            if (pauseBtn) pauseBtn.remove()
+            const actions = w.querySelector('div[data-ai-continue-actions]') as HTMLElement | null
+            if (actions && !actions.querySelector('[data-ai-continue-choose]')) {
+              actions.insertAdjacentHTML('beforeend', `
+                <button data-ai-continue-choose="reject" style="padding:4px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#ffffff;color:#334155;cursor:pointer;">放弃续写</button>
+                <button data-ai-continue-choose="accept" style="padding:4px 10px;border:1px solid #22c55e;border-radius:4px;background:#22c55e;color:#ffffff;cursor:pointer;">插入续写</button>
+              `)
+              const onChoose = (e: any) => {
+                e.preventDefault(); e.stopPropagation();
+                const btn = e.currentTarget as HTMLElement
+                const type = btn?.getAttribute('data-ai-continue-choose')
+                const inner = w.querySelector('[data-ai-continue-new]') as HTMLElement
+                if (type === 'accept') {
+                  if (inner) w.outerHTML = inner.innerHTML || ''
+                  else w.parentNode && w.parentNode.removeChild(w)
+                } else {
+                  // 放弃：移除预览容器
+                  w.parentNode && w.parentNode.removeChild(w)
+                }
+              }
+              const btnReject = actions.querySelector('button[data-ai-continue-choose="reject"]')
+              const btnAccept = actions.querySelector('button[data-ai-continue-choose="accept"]')
+              btnReject && btnReject.addEventListener('click', onChoose, { once: true })
+              btnAccept && btnAccept.addEventListener('click', onChoose, { once: true })
+            }
           }
           continuing.value = false
           const paused = aiSessionControl.isPaused(sessionId)
           if (!(paused && continuePausedNotified.value)) {
-            editor.notificationManager.open({ text: paused ? 'AI 续写已暂停' : 'AI 续写完成', type: 'info', timeout: 1500 })
+            editor.notificationManager.open({ text: paused ? 'AI 续写已暂停' : 'AI 续写完成，请选择是否插入续写内容', type: 'info', timeout: 2000 })
           }
         }
       })
@@ -182,12 +245,22 @@ export function useTinymceAI(getEditor: () => any) {
       const editor = getEditor()
       const doc = editor?.getDoc()
       const w = doc && (doc.querySelector('[data-ai-continue-wrapper]') as HTMLElement)
+      // 失败时用醒目的错误区块提示并复位状态
       if (w) w.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:6px;border-radius:4px;">AI 续写失败，请稍后重试。</div>`
       continuing.value = false
       editor?.notificationManager.open({ text: 'AI 续写失败，请稍后重试', type: 'error', timeout: 2000 })
     }
   }
 
+  /**
+   * AI 润色当前选中文本，并提供“保留原文/采用新文”选择。
+   * 特性：
+   * - 绑定暂停按钮，支持会话暂停；
+   * - 处理内部锚点 <a id/name> 的保留与去重；
+   * - 对单一包裹元素时尽量继承原有样式；
+   * - 支持多段对齐：按锚点或顺序映射替换对应段落。
+   * @param options 可选：style 风格、model 模型
+   */
   async function aiPolishSelected(options?: AiOptions) {
     const editor = getEditor()
     if (polishing.value || !editor) return
@@ -203,6 +276,7 @@ export function useTinymceAI(getEditor: () => any) {
 
     const markerId = `ai-polish-${Date.now()}`
     const sessionId = `tinymce-polish-${Date.now()}`
+    // 生成一个包含“原文”和“新文预览”的容器，附带操作按钮（暂停/保留原文/采用新文）
     const wrapperHtml = `
       <div data-ai-polish-wrapper="${markerId}" style="border:1px dashed #94a3b8;padding:8px;border-radius:6px;margin:6px 0;background:#f8fafc;">
         <div data-ai-polish-original style="background:#fff7ed;border:1px solid #fdba74;padding:6px;border-radius:4px;">
@@ -212,11 +286,10 @@ export function useTinymceAI(getEditor: () => any) {
           <span data-ai-polish="${markerId}">AI 润色中...</span>
         </div>
         <div data-ai-polish-actions style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap;">
-          <div style="margin-right:auto">
+          <div >
             <button data-ai-polish-pause data-session-id="${sessionId}" style="padding:4px 10px;border:1px solid #f59e0b;border-radius:4px;background:#f59e0b;color:#ffffff;cursor:pointer;">暂停本次润色</button>
           </div>
-          <button data-ai-choose="orig" style="padding:4px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#ffffff;color:#334155;cursor:pointer;">保留原文</button>
-          <button data-ai-choose="new" style="padding:4px 10px;border:1px solid #22c55e;border-radius:4px;background:#22c55e;color:#ffffff;cursor:pointer;">采用新文</button>
+          <!-- 选择按钮将在生成完成后再插入 -->
         </div>
       </div>`
     editor.selection.setContent(wrapperHtml)
@@ -240,6 +313,7 @@ export function useTinymceAI(getEditor: () => any) {
           editor.notificationManager.open({ text: '本次润色已暂停', type: 'info', timeout: 1500 })
         }, { once: true })
       }
+      // 采用原文/新文的点击处理
       const onChoose = (e: any) => {
         e.preventDefault(); e.stopPropagation();
         const target = e.currentTarget as HTMLElement
@@ -249,6 +323,7 @@ export function useTinymceAI(getEditor: () => any) {
         let replaceWith = type === 'orig' ? (orig?.innerHTML || '') : (neu?.innerHTML || '')
 
         if (type === 'new') {
+          // 情况 A：原文只有一个包裹元素，尽量保留其结构（并保留/去重锚点）
           const hasSingleChild = !!orig && orig.childElementCount === 1
           if (hasSingleChild) {
             const styleRefEl = orig.firstElementChild as HTMLElement
@@ -266,6 +341,7 @@ export function useTinymceAI(getEditor: () => any) {
               const tmp = doc.createElement('div')
               tmp.innerHTML = replaceWith
               if (preserved.length) {
+                // 去掉新文中与原始锚点重复的 a[id]/a[name]
                 const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
                 const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
                 tmp.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
@@ -278,11 +354,13 @@ export function useTinymceAI(getEditor: () => any) {
               replaceWith = cloned.outerHTML
             }
           } else {
+            // 情况 B：原文包含多个块元素，做“分段对齐”映射
             const docView = (wrapper as any).ownerDocument?.defaultView
             const doc = (wrapper as any).ownerDocument
             if (doc && replaceWith) {
               const tmp = doc.createElement('div')
               tmp.innerHTML = replaceWith
+              // 清理我们用于展示的外层标记，确保只保留内容本身
               const unwrapList = tmp.querySelectorAll('[data-ai-polish-wrapper], [data-ai-polish-original], [data-ai-polish-new], [data-ai-polish-actions]')
               unwrapList.forEach((el) => {
                 const parent = el.parentNode
@@ -290,6 +368,7 @@ export function useTinymceAI(getEditor: () => any) {
                 while (el.firstChild) parent.insertBefore(el.firstChild, el)
                 parent.removeChild(el)
               })
+              // 某些模型会在首行加“新问/新文：”，这里做清理
               while (tmp.firstChild && (tmp.firstChild as any).nodeType === 3) {
                 const t = tmp.firstChild.textContent || ''
                 const cleaned = t.replace(/^\s*新问[:：]\s*/i, '').replace(/^\s*新文[:：]\s*/i, '')
@@ -301,6 +380,7 @@ export function useTinymceAI(getEditor: () => any) {
               const origChildren = Array.from(orig.children) as HTMLElement[]
 
               if (newChildren.length && origChildren.length) {
+                // 建立“锚点 -> 原文下标”的索引，优先用锚点对齐
                 const anchorToIndex = new Map<string, number>()
                 origChildren.forEach((oc, idx) => {
                   Array.from(oc.querySelectorAll('a[id], a[name]')).forEach((a: Element) => {
@@ -334,6 +414,7 @@ export function useTinymceAI(getEditor: () => any) {
                   const tmpNeu = ref.ownerDocument!.createElement('div')
                   tmpNeu.innerHTML = htmlFragment
                   if (preserved.length) {
+                    // 去重：避免把相同锚点重复插入
                     const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
                     const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
                     tmpNeu.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
@@ -352,6 +433,7 @@ export function useTinymceAI(getEditor: () => any) {
                   const neu = newChildren[n] as HTMLElement
                   const rawHtml = (neu.innerHTML || (neu.textContent || '')) as string
                   let targetIdx = -1
+                  // 优先用新文中出现的锚点对齐到原文对应段落
                   Array.from(neu.querySelectorAll('a[id], a[name]')).some((a: Element) => {
                     const id = (a.getAttribute('id') || '').trim()
                     const nm = (a.getAttribute('name') || '').trim()
@@ -366,6 +448,7 @@ export function useTinymceAI(getEditor: () => any) {
                     return false
                   })
 
+                  // 若新文中一段被拆成 head<br/>tail 两块，尝试分配到相邻两个段落
                   const brPos = rawHtml.indexOf('<br')
                   if (brPos >= 0) {
                     const close = rawHtml.indexOf('>', brPos)
@@ -400,6 +483,7 @@ export function useTinymceAI(getEditor: () => any) {
 
                 replaceWith = mapped.join('')
               } else if (docView) {
+                // 无法做分段映射时，尽量继承原文容器的样式
                 const cs = docView.getComputedStyle(orig)
                 const styleMap: Record<string, string> = {
                   'font-family': cs.fontFamily,
@@ -423,10 +507,7 @@ export function useTinymceAI(getEditor: () => any) {
         if (replaceWith) (wrapper as any).outerHTML = replaceWith
         else (wrapper as any).outerHTML = orig?.innerHTML || ''
       }
-      const btnOrig = wrapper.querySelector('button[data-ai-choose="orig"]')
-      const btnNew = wrapper.querySelector('button[data-ai-choose="new"]')
-      btnOrig && btnOrig.addEventListener('click', onChoose as any, { once: true })
-      btnNew && btnNew.addEventListener('click', onChoose as any, { once: true })
+      // 注意：选择按钮仅在生成完成后插入与绑定事件（见 onDone）
     }
 
     try {
@@ -445,6 +526,7 @@ export function useTinymceAI(getEditor: () => any) {
             let preview = html || selText
             const tmp = doc2.createElement('div')
             tmp.innerHTML = preview
+            // 去除我们为了 UI 包裹添加的 data-ai-* 容器，避免被写回编辑器
             const unwrapList = tmp.querySelectorAll('[data-ai-polish-wrapper], [data-ai-polish-original], [data-ai-polish-new], [data-ai-polish-actions]')
             unwrapList.forEach((el) => {
               const parent = el.parentNode
@@ -452,6 +534,7 @@ export function useTinymceAI(getEditor: () => any) {
               while (el.firstChild) parent.insertBefore(el.firstChild, el)
               parent.removeChild(el)
             })
+            // 清理开头可能出现的“新问/新文：”
             while (tmp.firstChild && (tmp.firstChild as any).nodeType === 3) {
               const t = tmp.firstChild.textContent || ''
               const cleaned = t.replace(/^\s*新问[:：]\s*/i, '').replace(/^\s*新文[:：]\s*/i, '')
@@ -462,6 +545,7 @@ export function useTinymceAI(getEditor: () => any) {
 
             const hasSingleChild = !!orig2 && orig2.childElementCount === 1
             if (hasSingleChild) {
+              // 单容器：克隆原容器结构，保留其 a 锚点孩子，填充新内容
               const styleRefEl = orig2.firstElementChild as HTMLElement
               if (styleRefEl) {
                 const cloned = styleRefEl.cloneNode(false) as HTMLElement
@@ -474,6 +558,7 @@ export function useTinymceAI(getEditor: () => any) {
                 cloned.innerHTML = ''
                 preserved.forEach((a) => cloned.appendChild(a.cloneNode(true)))
                 if (preserved.length) {
+                  // 去重新内容中的重复锚点
                   const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
                   const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
                   tmp.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
@@ -488,6 +573,7 @@ export function useTinymceAI(getEditor: () => any) {
                 newBlock2.innerHTML = tmp.innerHTML
               }
             } else {
+              // 多容器：尝试按锚点/顺序对齐
               const newChildren = Array.from(tmp.children)
               const origChildren = Array.from(orig2.children) as HTMLElement[]
               if (newChildren.length && origChildren.length) {
@@ -591,6 +677,7 @@ export function useTinymceAI(getEditor: () => any) {
               } else {
                 const view = (wrap2 as any).ownerDocument?.defaultView
                 if (view) {
+                  // 回退：继承原容器样式后整体包裹
                   const cs = view.getComputedStyle(orig2)
                   const styleMap: Record<string, string> = {
                     'font-family': cs.fontFamily,
@@ -614,6 +701,202 @@ export function useTinymceAI(getEditor: () => any) {
           }
         },
         onDone: () => {
+          // 生成完成：移除暂停按钮，并在操作区插入“保留原文/采用新文”按钮，绑定点击事件
+          try {
+            const doc3 = editor.getDoc()
+            const wrap3 = doc3 && doc3.querySelector(`div[data-ai-polish-wrapper="${markerId}"]`)
+            if (wrap3) {
+              // 完成后移除“暂停本次润色”按钮
+              const pauseBtn = wrap3.querySelector('button[data-ai-polish-pause]') as HTMLElement | null
+              if (pauseBtn) pauseBtn.remove()
+              const actions = wrap3.querySelector('div[data-ai-polish-actions]') as HTMLElement | null
+              if (actions && !actions.querySelector('[data-ai-choose]')) {
+                actions.insertAdjacentHTML('beforeend', `
+                  <button data-ai-choose="orig" style="padding:4px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#ffffff;color:#334155;cursor:pointer;">保留原文</button>
+                  <button data-ai-choose="new" style="padding:4px 10px;border:1px solid #22c55e;border-radius:4px;background:#22c55e;color:#ffffff;cursor:pointer;">采用新文</button>
+                `)
+                const btnOrig2 = actions.querySelector('button[data-ai-choose="orig"]')
+                const btnNew2 = actions.querySelector('button[data-ai-choose="new"]')
+                const onChoose2 = (e: any) => {
+                  // 复用与上方 onChoose 相同的处理逻辑
+                  e.preventDefault(); e.stopPropagation();
+                  const target = e.currentTarget as HTMLElement
+                  const type = target?.getAttribute('data-ai-choose')
+                  const orig = wrap3.querySelector('div[data-ai-polish-original]') as HTMLElement
+                  const neu = wrap3.querySelector('div[data-ai-polish-new]') as HTMLElement
+                  let replaceWith = type === 'orig' ? (orig?.innerHTML || '') : (neu?.innerHTML || '')
+                  if (type === 'new') {
+                    const hasSingleChild = !!orig && orig.childElementCount === 1
+                    if (hasSingleChild) {
+                      const styleRefEl = orig.firstElementChild as HTMLElement
+                      if (styleRefEl && replaceWith) {
+                        const cloned = styleRefEl.cloneNode(false) as HTMLElement
+                        const preserved = Array.from(styleRefEl.childNodes).filter((n: any) => {
+                          if ((n as any).nodeType !== 1) return false
+                          const el = n as HTMLElement
+                          const tag = el.tagName.toLowerCase()
+                          return tag === 'a' && (el.id || el.getAttribute('name'))
+                        }) as HTMLElement[]
+                        cloned.innerHTML = ''
+                        preserved.forEach((a) => cloned.appendChild(a.cloneNode(true)))
+                        const doc = (wrap3 as any).ownerDocument!
+                        const tmp = doc.createElement('div')
+                        tmp.innerHTML = replaceWith
+                        if (preserved.length) {
+                          const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
+                          const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
+                          tmp.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
+                            const id = (el.getAttribute('id') || '').trim()
+                            const nm = (el.getAttribute('name') || '').trim()
+                            if ((id && ids.has(id)) || (nm && names.has(nm))) el.parentNode?.removeChild(el as any)
+                          })
+                        }
+                        while (tmp.firstChild) cloned.appendChild(tmp.firstChild)
+                        replaceWith = cloned.outerHTML
+                      }
+                    } else {
+                      const docView = (wrap3 as any).ownerDocument?.defaultView
+                      const doc = (wrap3 as any).ownerDocument
+                      if (doc && replaceWith) {
+                        const tmp = doc.createElement('div')
+                        tmp.innerHTML = replaceWith
+                        const unwrapList = tmp.querySelectorAll('[data-ai-polish-wrapper], [data-ai-polish-original], [data-ai-polish-new], [data-ai-polish-actions]')
+                        unwrapList.forEach((el) => {
+                          const parent = el.parentNode
+                          if (!parent) return
+                          while (el.firstChild) parent.insertBefore(el.firstChild, el)
+                          parent.removeChild(el)
+                        })
+                        while (tmp.firstChild && (tmp.firstChild as any).nodeType === 3) {
+                          const t = tmp.firstChild.textContent || ''
+                          const cleaned = t.replace(/^\s*新问[:：]\s*/i, '').replace(/^\s*新文[:：]\s*/i, '')
+                          if (cleaned.length === t.length) break
+                          if (cleaned) tmp.firstChild.textContent = cleaned
+                          else tmp.removeChild(tmp.firstChild)
+                        }
+                        const newChildren = Array.from(tmp.children)
+                        const origChildren = Array.from(orig.children) as HTMLElement[]
+                        if (newChildren.length && origChildren.length) {
+                          const anchorToIndex = new Map<string, number>()
+                          origChildren.forEach((oc, idx) => {
+                            Array.from(oc.querySelectorAll('a[id], a[name]')).forEach((a: Element) => {
+                              const id = (a.getAttribute('id') || '').trim()
+                              const nm = (a.getAttribute('name') || '').trim()
+                              if (id) anchorToIndex.set(`id:${id}`, idx)
+                              if (nm) anchorToIndex.set(`name:${nm}`, idx)
+                            })
+                          })
+                          const taken = new Set<number>()
+                          const mapped = new Array(origChildren.length).fill('') as string[]
+                          let cursor = 0
+                          const takeNextAvailable = (start: number) => {
+                            for (let k = start; k < origChildren.length; k++) if (!taken.has(k)) return k
+                            return -1
+                          }
+                          const assignToIndex = (targetIdx: number, htmlFragment: string) => {
+                            if (targetIdx < 0 || targetIdx >= origChildren.length) return
+                            const ref = origChildren[targetIdx]
+                            const clone = ref.cloneNode(false) as HTMLElement
+                            const preserved = Array.from(ref.childNodes).filter((n: any) => {
+                              if ((n as any).nodeType !== 1) return false
+                              const el = n as HTMLElement
+                              const tag = el.tagName.toLowerCase()
+                              return tag === 'a' && (el.id || el.getAttribute('name'))
+                            }) as HTMLElement[]
+                            clone.innerHTML = ''
+                            preserved.forEach((a) => clone.appendChild(a.cloneNode(true)))
+                            const tmpNeu = ref.ownerDocument!.createElement('div')
+                            tmpNeu.innerHTML = htmlFragment
+                            if (preserved.length) {
+                              const ids = new Set(preserved.map(a => (a.id || '').trim()).filter(Boolean))
+                              const names = new Set(preserved.map(a => (a.getAttribute('name') || '').trim()).filter(Boolean))
+                              tmpNeu.querySelectorAll('a[id], a[name]').forEach((el: Element) => {
+                                const id = (el.getAttribute('id') || '').trim()
+                                const nm = (el.getAttribute('name') || '').trim()
+                                if ((id && ids.has(id)) || (nm && names.has(nm))) (el.parentNode as any)?.removeChild(el as any)
+                              })
+                            }
+                            while (tmpNeu.firstChild) clone.appendChild(tmpNeu.firstChild)
+                            mapped[targetIdx] = clone.outerHTML
+                            taken.add(targetIdx)
+                            if (targetIdx >= cursor) cursor = targetIdx + 1
+                          }
+                          for (let n = 0; n < newChildren.length; n++) {
+                            const neu = newChildren[n] as HTMLElement
+                            const rawHtml = (neu.innerHTML || (neu.textContent || '')) as string
+                            let targetIdx = -1
+                            Array.from(neu.querySelectorAll('a[id], a[name]')).some((a: Element) => {
+                              const id = (a.getAttribute('id') || '').trim()
+                              const nm = (a.getAttribute('name') || '').trim()
+                              if (id && anchorToIndex.has(`id:${id}`)) {
+                                const idx = anchorToIndex.get(`id:${id}`)!
+                                if (!taken.has(idx)) { targetIdx = idx; return true }
+                              }
+                              if (nm && anchorToIndex.has(`name:${nm}`)) {
+                                const idx = anchorToIndex.get(`name:${nm}`)!
+                                if (!taken.has(idx)) { targetIdx = idx; return true }
+                              }
+                              return false
+                            })
+                            const brPos = rawHtml.indexOf('<br')
+                            if (brPos >= 0) {
+                              const close = rawHtml.indexOf('>', brPos)
+                              const head = rawHtml.slice(0, brPos)
+                              const tail = rawHtml.slice(close + 1)
+                              if (targetIdx < 0) targetIdx = takeNextAvailable(cursor)
+                              if (targetIdx >= 0) assignToIndex(targetIdx, head)
+                              let idx2 = -1
+                              const tmpTail = orig.ownerDocument!.createElement('div')
+                              tmpTail.innerHTML = tail
+                              Array.from(tmpTail.querySelectorAll('a[id], a[name]')).some((a: Element) => {
+                                const id = (a.getAttribute('id') || '').trim()
+                                const nm = (a.getAttribute('name') || '').trim()
+                                if (id && anchorToIndex.has(`id:${id}`)) {
+                                  const idx = anchorToIndex.get(`id:${id}`)!
+                                  if (!taken.has(idx)) { idx2 = idx; return true }
+                                }
+                                if (nm && anchorToIndex.has(`name:${nm}`)) {
+                                  const idx = anchorToIndex.get(`name:${nm}`)!
+                                  if (!taken.has(idx)) { idx2 = idx; return true }
+                                }
+                                return false
+                              })
+                              if (idx2 < 0) idx2 = takeNextAvailable(Math.max(cursor, (targetIdx >= 0 ? targetIdx + 1 : 0)))
+                              if (idx2 >= 0) assignToIndex(idx2, tail)
+                            } else {
+                              if (targetIdx < 0) targetIdx = takeNextAvailable(cursor)
+                              if (targetIdx >= 0) assignToIndex(targetIdx, rawHtml)
+                            }
+                          }
+                          replaceWith = mapped.join('')
+                        } else if (docView) {
+                          const cs = docView.getComputedStyle(orig)
+                          const styleMap: Record<string, string> = {
+                            'font-family': cs.fontFamily,
+                            'font-size': cs.fontSize,
+                            'font-weight': cs.fontWeight,
+                            'font-style': cs.fontStyle,
+                            'line-height': cs.lineHeight,
+                            color: cs.color,
+                            'text-decoration': (cs as any).textDecorationLine || ''
+                          }
+                          const styleStr = Object.entries(styleMap)
+                            .filter(([, v]) => v && v !== 'normal' && v !== '400')
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join('; ')
+                          replaceWith = `<div style="${styleStr}">${replaceWith}</div>`
+                        }
+                      }
+                    }
+                  }
+                  if (replaceWith) (wrap3 as any).outerHTML = replaceWith
+                  else (wrap3 as any).outerHTML = orig?.innerHTML || ''
+                }
+                btnOrig2 && btnOrig2.addEventListener('click', onChoose2 as any, { once: true })
+                btnNew2 && btnNew2.addEventListener('click', onChoose2 as any, { once: true })
+              }
+            }
+          } catch {}
           polishing.value = false
           const paused = aiSessionControl.isPaused(sessionId)
           if (!(paused && polishPausedNotified.value)) {
@@ -625,6 +908,7 @@ export function useTinymceAI(getEditor: () => any) {
       console.error(e)
       const doc = editor.getDoc()
       const newBlock = doc && doc.querySelector(`div[data-ai-polish-wrapper="${markerId}"] div[data-ai-polish-new]`)
+      // 失败提示并复位状态
       if (newBlock) {
         (newBlock as HTMLElement).innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:6px;border-radius:4px;">AI 润色失败，请稍后重试。</div>`
       }

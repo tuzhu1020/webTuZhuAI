@@ -1,4 +1,15 @@
+/**
+ * TinyMCE 与 Word(docx) 导入/导出相关的组合式函数。
+ *
+ * 功能：
+ * - 从本地选择 .docx 文件并转换为 HTML，写入当前编辑器内容。
+ * - 将当前编辑器内容导出为 .docx（优先）或回退为 .doc。
+ */
 export function useTinymceWord(getEditor: () => any) {
+  /**
+   * 从本地导入 .docx 文件并转换为 HTML 后注入编辑器。
+   * 依赖 mammoth.browser，内联图片以 base64 形式嵌入。
+   */
   async function handleImportWord() {
     try {
       const input = document.createElement('input')
@@ -38,6 +49,10 @@ export function useTinymceWord(getEditor: () => any) {
     }
   }
 
+  /**
+   * 将当前编辑器内容导出为 Word 文档。
+   * 优先尝试生成 .docx，如失败则回退生成 .doc。
+   */
   async function handleExportWord() {
     const editor = getEditor()
     if (!editor) return
@@ -68,5 +83,6 @@ export function useTinymceWord(getEditor: () => any) {
     }
   }
 
+  // 返回导入/导出方法
   return { handleImportWord, handleExportWord }
 }
