@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+// no vue reactivity needed in this composable file-level scope
 import { useChatStore } from '@/stores/chat';
 import { useUserStore } from '@/stores/user';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
@@ -43,18 +43,14 @@ export function useAiChat() {
     }
   }
 
-  // 构造系统提示，指导模型基于知识库回答
-  function buildKbSystemMessage(docs: KBDocItem[]) {
-    if (!docs?.length) return null as any;
+  // 构造参考片段字符串（供提示词参考使用）
+  function buildKbRefs(docs: KBDocItem[]): string {
+    if (!docs?.length) return '';
     const top = docs.slice(0, 8);
     const refs = top
       .map((d, i) => `【${i + 1}】${(d.text || '').trim()}`)
       .join('\n');
-    // const content = `你将基于以下知识库参考片段进行回答，要求：\n- 以中文作答，优先依据参考片段内容，确保准确且不臆造。\n- 如参考片段未覆盖用户问题，明确说明“未在知识库中找到直接依据”，再给出一般性建议。\n- 优先引用要点，可在文末以【序号】标注引用来源。\n\n参考片段：\n${refs}`;
-    // return { role: 'system', content };
-    console.log('知识库参考片段：', refs);
-    
-    return refs
+    return refs;
   }
 
   /**
@@ -64,7 +60,13 @@ export function useAiChat() {
    * @param {'润色'|'写作'} mode - 模式，润色或智能写作
    * @returns {Array} messages - AI 请求消息数组
    */
-  function createAIMessages(text, style = '中性正式', mode = '润色',refs:string) {
+  function createAIMessages(
+    text: string,
+    style: string = '中性正式',
+    mode: '润色' | '写作' = '润色',
+    refs?: string,
+    options?: { len?: 'short' | 'mid' | 'long'; requires?: string[]; wordLimit?: number; strictWordLimit?: boolean }
+  ) {
     const selectedStyle = allowedStyles.includes(style) ? style : '中性正式';
     // system 提示词
     const systemContent = `
@@ -84,7 +86,21 @@ export function useAiChat() {
     if (mode === '润色') {
       userContent = `请以「${selectedStyle}」风格，${refs ? '参考以下片段：' : ''}${refsSection}对以下内容进行智能润色，并仅输出润色后的正文（不要标注来源或序号）：\n\n${text}`;
     } else if (mode === '写作') {
-      userContent = `请以「${selectedStyle}」风格，基于以下主题${refs ? '与参考片段' : ''}生成完整中文内容，并仅输出正文 Markdown（不要标注来源或序号）：\n\n主题：${text}${refsSection}`;
+      const lenMap: Record<string, string> = { short: '简短', mid: '适中', long: '较长' };
+      const reqs = options?.requires && options.requires.length ? options.requires.join('、') : '结构清晰、简洁明了、无错别字';
+      const hasLimit = typeof options?.wordLimit === 'number' && options.wordLimit > 0;
+      const strict = Boolean(options?.strictWordLimit);
+      const lenLabel = lenMap[options?.len || 'mid'];
+      const lengthPhrase = hasLimit
+        ? (strict ? `严格为 ${options!.wordLimit} 字（±0）` : `控制在约 ${options!.wordLimit} 字（±20%）`)
+        : `${lenLabel}篇幅`;
+      const strictRules = hasLimit && strict
+        ? `\n- 字数必须严格等于 ${options!.wordLimit}（不多不少）。\n- 字数统计仅计算可见正文文字，不计入 Markdown 标记（如#、*、-、[]()等符号）。\n- 若可能超出，请自行删减；若不足，请补充内容使总字数恰为 ${options!.wordLimit}。\n- 禁止输出任何说明、抱歉或附加话语。`
+        : '';
+      userContent = `请以「${selectedStyle}」风格，严格按照下列“要求”，围绕“意图”创作一段${lengthPhrase}的中文内容。请自动生成合适的标题与小节结构；每段围绕一个核心观点；禁止输出任何解释性话语；输出必须为纯 Markdown 文本（不得使用代码块围栏）。${strictRules}\n` +
+        `意图：${text}\n` +
+        `要求：${reqs}\n` +
+        `受众：通用读者。${refsSection}`;
     }
 
     return [
@@ -174,13 +190,13 @@ export function useAiChat() {
     model?: string;
     onDelta?: StreamChatParams['onDelta'];
     onDone?: StreamChatParams['onDone'];
-  },style?: string ,model?: string) {
+  }, style?: string, model?: string) {
     // const messages = [
     //   { role: 'system', content: '你是一个中文写作润色助手。请严格输出「纯 Markdown 文本」，不要使用任何代码围栏（如 ``` 或 ~~~）。保持语义不变，优化逻辑、语法与用词，可适度调整结构。' },
     //   { role: 'user', content: `请对以下内容进行智能润色，并仅输出润色后的内容：\n\n${text}` },
     // ];
     const docs = await fetchKnowledge(text);
-    const refs = buildKbSystemMessage(docs);
+    const refs = buildKbRefs(docs);
     const messages = createAIMessages(text, style, '润色', refs);
     return streamChat({
       sessionId: opts?.sessionId,
@@ -205,7 +221,7 @@ export function useAiChat() {
     isOutline?: boolean;
   }) {
     const docs = await fetchKnowledge(contextMarkdown);
-    const refs = buildKbSystemMessage(docs);
+    const refs = buildKbRefs(docs);
     const messages = createContinueMessages({
       contextMarkdown,
       style: opts?.style || '中性正式',
@@ -222,5 +238,5 @@ export function useAiChat() {
     });
   }
 
-  return { selectModel, streamChat, polishText, continueText };
+  return { selectModel, streamChat, polishText, continueText, fetchKnowledge, buildKbRefs, createAIMessages };
 }

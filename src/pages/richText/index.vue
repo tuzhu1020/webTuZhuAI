@@ -38,6 +38,12 @@
                         <button :class="mode==='polish'? activeChip: chip" @click="mode='polish'"
                             class="px-[10px] h-[28px] rounded-[6px] text-[12px]">智能润色</button>
                     </div>
+                    <div class="mt-[8px] flex items-center gap-[8px]">
+                        <span class="text-[12px] text-[#6b7280]">目标字数（严格）：</span>
+                        <input type="number" min="0" v-model.number="wordLimit" placeholder="如 300"
+                            class="w-[100px] h-[28px] px-[8px] rounded-[6px] border border-[#e5e7eb] text-[12px] focus:(outline-none border-[#3b5bfd])" />
+                        <span class="text-[11px] text-[#9ca3af]">留空则不限制</span>
+                    </div>
                 </div>
 
 
@@ -104,22 +110,27 @@
 
 <script setup lang="ts">
 import { ref, defineComponent, h, nextTick } from 'vue';
-import { useChatStore } from '@/stores/chat';
-import { useUserStore } from '@/stores/user';
+// 页面无需直接访问 chat/user stores
 import { useAiChat } from '@/composables/useAiChat';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
 import { marked } from 'marked';
-import { Textarea as ATextarea, Button as AButton } from 'ant-design-vue';
-import queryDocuments, { type KBDocItem } from '@/service/knowledge/queryDocumentsService';
+import { Textarea as ATextarea } from 'ant-design-vue';
+// 知识库查询由 useAiChat 提供的 fetchKnowledge 封装，无需直接引入服务
 // Tinymce 组件已全局自动引入，无需手动import
 const richText = ref('');
 const tinymceRef = ref();
 const thinkRef = ref<HTMLElement | null>(null);
+// 记录最新的 Markdown 增量（未转换为 HTML），用于严格字数校验与二次微调
+const latestMarkdown = ref<string>('');
 
 
 // AI Panel state
 const tip = ref('');
 const len = ref('mid');
+const wordLimit = ref<number | null>(null);
+// 记录本次生成使用的参考与目标，便于后续严格字数微调
+const lastRefs = ref<string>('');
+const lastWordLimit = ref<number | null>(null);
 const requires = ref([
   { key: 'logic', label: '结构清晰', checked: true },
   { key: 'tone', label: '语气正式', checked: false },
@@ -139,9 +150,8 @@ const style = ref<'学术' | '公文' | '日常' | '网络' | '科普' | '文学
 // 用于接收 SSE 增量（含 reasoning_content）
 const chatMessageList = ref<any[]>([]);
 
-const chatStore = useChatStore();
-const userStore = useUserStore();
-const { selectModel, streamChat } = useAiChat();
+// 已通过 useAiChat 组合式封装会话逻辑
+const { selectModel, streamChat, fetchKnowledge, buildKbRefs, createAIMessages } = useAiChat();
 
 // 将纯文本增量转换为基础 HTML（保持段落/换行）
 // 将 Markdown 流式增量转换成 HTML，保留加粗/斜体/标题/列表等样式
@@ -155,6 +165,47 @@ function mdToHtml(markdown: string) {
   });
   // 直接使用 marked 解析为 HTML。TinyMCE 可直接渲染这些基础块级与行内元素
   return marked.parse(markdown) as string;
+}
+
+// 估算 HTML 可见文本长度（去标签与空白）
+function htmlVisibleLength(html: string): number {
+  if (!html) return 0;
+  const text = html.replace(/<[^>]+>/g, '');
+  return text.replace(/\s/g, '').length;
+}
+
+// 去除 Markdown 语法标记，仅保留可见正文文字
+function stripMarkdown(md: string): string {
+  if (!md) return '';
+  let s = md;
+  // 代码块
+  s = s.replace(/```[\s\S]*?```/g, '');
+  // 行内代码
+  s = s.replace(/`[^`]*`/g, '');
+  // 图片 ![alt](url)
+  s = s.replace(/!\[[^\]]*\]\([^\)]*\)/g, '');
+  // 链接 [text](url) -> text
+  s = s.replace(/\[([^\]]+)\]\([^\)]*\)/g, '$1');
+  // 标题前缀 #, ##, ...
+  s = s.replace(/^\s{0,3}#{1,6}\s+/gm, '');
+  // 引用前缀 >
+  s = s.replace(/^\s*>\s?/gm, '');
+  // 列表项前缀 - * + 或 数字.
+  s = s.replace(/^\s*[-*+]\s+/gm, '');
+  s = s.replace(/^\s*\d+\.\s+/gm, '');
+  // 粗斜体标记 ** * __ _
+  s = s.replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1');
+  // 表格分隔线和管道
+  s = s.replace(/^\s*\|?\s*-{2,}.*$/gm, '');
+  s = s.replace(/\|/g, ' ');
+  // 移除多余空白
+  s = s.replace(/\r?\n+/g, '\n');
+  return s.trim();
+}
+
+function visibleTextLength(md: string): number {
+  const plain = stripMarkdown(md);
+  return plain.replace(/\s/g, '').length; // 去空白，仅统计可见字符
 }
 
 // function buildSystemPrompt() {
@@ -180,67 +231,7 @@ function mdToHtml(markdown: string) {
 //     `受众：通用读者。`
 //   );
 // }
-const allowedStyles = ['学术', '公文', '日常', '网络', '科普', '文学', '中性正式'];
-
-// 从意图/文本查询知识库
-async function fetchKnowledge(question: string): Promise<KBDocItem[]> {
-  try {
-    const docs = await queryDocuments(question);
-    return Array.isArray(docs) ? docs : [];
-  } catch (e) {
-    console.warn('知识库查询失败:', e);
-    return [];
-  }
-}
-
-// 构造参考片段（不包含来源/链接）
-function buildKbRefs(docs: KBDocItem[]): string {
-  if (!docs?.length) return '';
-  return docs.slice(0, 8)
-    .map((d, i) => `【${i + 1}】${(d.text || '').trim()}`)
-    .join('\n');
-}
-
-/**
- * 构建 AI 消息体
- */
-function buildAIMessages(
-    text: string,
-    style: string = '中性正式',
-    mode: 'polish' | 'write' = 'polish',
-    options: { len?: 'short' | 'mid' | 'long'; requires?: string[] } = {},
-    refs?: string
-) {
-    const selectedStyle = allowedStyles.includes(style) ? style : '中性正式';
-    const lenMap: Record<string, string> = { short: '简短', mid: '适中', long: '较长' };
-    const reqs = options.requires && options.requires.length ? options.requires.join('、') : '结构清晰、简洁明了、无错别字';
-
-    const systemPrompt = `
-        你是一个中文写作助手。
-        请严格输出「纯 Markdown 文本」，禁止使用任何代码围栏（如 \`\`\` 或 ~~~），不要附加解释或多余文字。
-        保留 Markdown 标准语法，包括标题（#）、小结、列表、加粗、斜体、链接等，同时保持结构清晰。
-        当用户要求润色时，请在保持语义不变的前提下优化逻辑、语法与用词，可适度调整结构；
-        当用户要求写作时，请根据提示内容创作完整中文文本，逻辑清晰、条理分明，可自动生成标题和小节结构，每段尽量围绕一个核心观点。
-        可根据 ${selectedStyle} 参数选择风格：学术、公文、日常、网络、科普、文学、中性正式（默认）。
-        可参考提供的片段进行处理，但请不要在输出中标注任何来源、链接或序号。
-        `;
-
-    let userPrompt = '';
-    const refsSection = refs ? `\n\n参考片段：\n\n${refs}\n\n` : '\n\n';
-    if (mode === 'polish') {
-        userPrompt = `请以「${selectedStyle}」风格${refs ? '参考以下片段' : ''}对以下内容进行智能润色，保持原始含义，优化逻辑、语法与用词，可适度调整结构；输出为「纯 Markdown 文本」，禁止使用代码块围栏，不要附加解释或说明：${refsSection}${text}`;
-    } else if (mode === 'write') {
-        userPrompt = `请以「${selectedStyle}」风格，严格按照下列“要求”，围绕“意图”创作一段${lenMap[options.len || 'mid']}篇幅的中文内容。请自动生成合适的标题与小节结构；每段围绕一个核心观点；禁止输出任何解释性话语；输出必须为纯 Markdown 文本（不得使用代码块围栏）。\n` +
-            `意图：${text}\n` +
-            `要求：${reqs}\n` +
-            `受众：通用读者。${refsSection}`;
-    }
-
-    return [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-    ];
-}
+// 使用 composable 中已实现的工具方法（移除本地重复实现）
 
 /**
  * 发送消息
@@ -262,21 +253,31 @@ async function send() {
     // 获取用户选择的额外要求
     const reqs = requires.value.filter(r => r.checked).map(r => r.label);
 
-    // 查询知识库并构造参考片段
-    const docs = await fetchKnowledge(intent);
-    const refs = buildKbRefs(docs);
+    // 查询知识库并构造参考片段（当已有正文很长时，复用上次 refs，避免重复检索）
+    let refs = '';
+    const longContext = htmlVisibleLength(richText.value) > 1500; // 阈值可根据需要调整
+    if (longContext && lastRefs.value) {
+      refs = lastRefs.value;
+    } else {
+      const docs = await fetchKnowledge(intent);
+      refs = buildKbRefs(docs);
+      lastRefs.value = refs;
+    }
 
     // 构造 OpenAI 兼容消息（使用 intent，避免因先清空 input 导致传空）
-    const msg = buildAIMessages(
+    const lenMap: Record<string, string> = { short: '简短', mid: '适中', long: '较长' };
+    // 直接复用 composable 内的消息构建：中文模式名适配
+    const msg = createAIMessages(
         intent,
         style.value,
-        mode.value === 'write' ? 'write' : 'polish',
-        { len: len.value as any, requires: reqs },
-        refs
+        mode.value === 'write' ? '写作' : '润色',
+        refs,
+        { len: len.value as any, requires: reqs, wordLimit: wordLimit.value || undefined, strictWordLimit: Boolean(wordLimit.value && mode.value === 'write') }
     );
 
     // 此时再安全地清空输入框
     input.value = '';
+    lastWordLimit.value = wordLimit.value ?? null;
 
     const sessionId = `richtext-${Date.now()}`;
     const model = selectModel({ reasoning: auto.value, fallback: 'deepseek-chat' });
@@ -295,6 +296,7 @@ async function send() {
             onDelta: async ({ chatMessageList }) => {
                 const last = chatMessageList[chatMessageList.length - 1];
                 const content = last?.choices?.[0]?._content || '';
+                latestMarkdown.value = content;
                 const html = mdToHtml(content);
                 richText.value = mode.value === 'write' ? `${baseBefore}${html}` : html;
                 await nextTick();
@@ -302,6 +304,48 @@ async function send() {
                 if (thinkRef.value) thinkRef.value.scrollTop = thinkRef.value.scrollHeight;
             },
             onDone: async () => {
+                // 首次完成后若启用严格字数，则进行一次自动微调
+                const target = lastWordLimit.value;
+                if (mode.value === 'write' && target && target > 0) {
+                  const count = visibleTextLength(latestMarkdown.value);
+                  if (count !== target) {
+                    // 触发一次“严格到 X 字”的调整请求，复用上次 refs，不再检索知识库
+                    const adjustSystem = '你是一个中文写作助手。只输出纯 Markdown 正文，不得包含任何解释性话语或道歉。';
+                    const action = count > target ? '精简' : '扩展';
+                    const adjustUser = `以下是已生成的正文（Markdown）。请在不改变核心论点与总体结构的前提下，将其${action}到严格为 ${target} 字（±0）。\n` +
+                      `- 字数统计仅计算可见正文文字，不计入 Markdown 标记符号。\n` +
+                      `- 若可能超出，请自行删减；若不足，请补充内容使总字数恰为 ${target}。\n` +
+                      `- 禁止输出任何说明或附加话语。\n\n` +
+                      `${lastRefs.value ? '可适度参考以下片段，但不要在输出中标注任何来源或序号：\n\n' + lastRefs.value + '\n\n' : ''}` +
+                      `正文：\n\n${latestMarkdown.value}`;
+
+                    await streamChat({
+                      sessionId: `richtext-adjust-${Date.now()}`,
+                      messages: [
+                        { role: 'system', content: adjustSystem },
+                        { role: 'user', content: adjustUser },
+                      ] as any,
+                      model,
+                      chatMessageList: chatMessageList.value,
+                      onDelta: async ({ chatMessageList }) => {
+                        const last = chatMessageList[chatMessageList.length - 1];
+                        const content = last?.choices?.[0]?._content || '';
+                        latestMarkdown.value = content;
+                        const html = mdToHtml(content);
+                        richText.value = html;
+                        await nextTick();
+                        if (tinymceRef.value?.scrollToBottom) tinymceRef.value.scrollToBottom();
+                        if (thinkRef.value) thinkRef.value.scrollTop = thinkRef.value.scrollHeight;
+                      },
+                      onDone: async () => {
+                        const finalCount = visibleTextLength(latestMarkdown.value);
+                        messages.value.push({ role: 'assistant', content: `已按目标字数调整完成（${finalCount}/${target}）` });
+                        sending.value = false;
+                      },
+                    });
+                    return; // 提前结束，避免再次设置 sending=false
+                  }
+                }
                 messages.value.push({ role: 'assistant', content: '已生成内容，已写入编辑器。' });
                 sending.value = false;
             },
