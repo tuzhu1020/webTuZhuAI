@@ -3,6 +3,7 @@ import { useChatStore } from '@/stores/chat';
 import { useUserStore } from '@/stores/user';
 import { AI_IDENTITY_AI_VALUE } from '@/constant/enum';
 import queryDocuments, { type KBDocItem } from '@/service/knowledge/queryDocumentsService';
+import { $message } from '@/composables/antMessage';
 
 // 简单的会话控制器：用于在外部触发“暂停”某次流式会话
 export const aiSessionControl = {
@@ -151,14 +152,32 @@ export function useAiChat() {
       { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true, isSpread: true },
     ];
 
-    const session = await chatStore.startChatSession(
-      sessionId,
-      params.messages as any,
-      userStore,
-      model,
-      params.docs || null,
-    );
-    if (!session) throw new Error('会话启动失败');
+    let session;
+    try {
+      session = await chatStore.startChatSession(
+        sessionId,
+        params.messages as any,
+        userStore,
+        model,
+        params.docs || null,
+      );
+      if (!session) throw new Error('会话启动失败');
+    } catch (error: any) {
+      console.error('AI会话启动失败:', error);
+      
+      // 处理认证失败错误
+      if (error.message?.includes('401') || error.message?.includes('认证')) {
+        $message.error('认证失败，请检查登录状态或重新登录');
+      } else if (error.message?.includes('403')) {
+        $message.error('权限不足，无法访问该功能');
+      } else if (error.message?.includes('网络') || error.message?.includes('连接')) {
+        $message.error('网络连接失败，请检查网络设置');
+      } else {
+        $message.error(`AI服务暂时不可用: ${error.message || '未知错误'}`);
+      }
+      
+      throw error; // 继续抛出错误让调用方处理
+    }
 
     return new Promise<any[]>((resolve, reject) => {
       const pump = async () => {

@@ -26,6 +26,8 @@ export function useTinymceAI(getEditor: () => any) {
   // 防止暂停后重复提示
   const polishPausedNotified = ref(false)
   const continuePausedNotified = ref(false)
+  // 跟踪未选择的润色会话
+  const unselectedPolishSessions = ref(new Set<string>())
   const { polishText, continueText } = useAiChat()
   // 流式增量内容缓冲：按会话累积（解决某些后端只返回增量切片的问题）
   const polishStreamBuffer = new Map<string, string>()
@@ -267,7 +269,7 @@ export function useTinymceAI(getEditor: () => any) {
   }
 
   /**
-   * AI 润色当前选中文本，并提供“保留原文/采用新文”选择。
+   * AI 润色当前选中文本，并提供"保留原文/采用新文"选择。
    * 特性：
    * - 绑定暂停按钮，支持会话暂停；
    * - 处理内部锚点 <a id/name> 的保留与去重；
@@ -278,6 +280,16 @@ export function useTinymceAI(getEditor: () => any) {
   async function aiPolishSelected(options?: AiOptions) {
     const editor = getEditor()
     if (polishing.value || !editor) return
+    
+    // 检查是否有未选择的润色结果
+    if (unselectedPolishSessions.value.size > 0) {
+      editor.notificationManager.open({ 
+        text: '请先选择之前的润色结果（保留原文或采用新文）才能继续润色', 
+        type: 'warning', 
+        timeout: 3000 
+      })
+      return
+    }
 
     const selText = editor.selection.getContent({ format: 'text' }) || ''
     const selHtml = editor.selection.getContent({ format: 'html' }) || ''
@@ -324,6 +336,8 @@ export function useTinymceAI(getEditor: () => any) {
           pauseBtn.disabled = true
           polishing.value = false
           polishPausedNotified.value = true
+          // 暂停时从未选择列表中移除
+          unselectedPolishSessions.value.delete(sid)
           editor.notificationManager.open({ text: '本次润色已暂停', type: 'info', timeout: 1500 })
         }, { once: true })
       }
@@ -335,6 +349,9 @@ export function useTinymceAI(getEditor: () => any) {
         const orig = wrapper.querySelector('div[data-ai-polish-original]') as HTMLElement
         const neu = wrapper.querySelector('div[data-ai-polish-new]') as HTMLElement
         let replaceWith = type === 'orig' ? (orig?.innerHTML || '') : (neu?.innerHTML || '')
+        
+        // 用户已做出选择，从未选择会话中移除
+        unselectedPolishSessions.value.delete(sessionId)
 
         if (type === 'new') {
           // 情况 A：原文只有一个包裹元素，尽量保留其结构（并保留/去重锚点）
@@ -802,6 +819,10 @@ export function useTinymceAI(getEditor: () => any) {
                   const orig = wrap3.querySelector('div[data-ai-polish-original]') as HTMLElement
                   const neu = wrap3.querySelector('div[data-ai-polish-new]') as HTMLElement
                   let replaceWith = type === 'orig' ? (orig?.innerHTML || '') : (neu?.innerHTML || '')
+                  
+                  // 用户已做出选择，从未选择会话中移除
+                  unselectedPolishSessions.value.delete(sessionId)
+                  
                   if (type === 'new') {
                     const hasSingleChild = !!orig && orig.childElementCount === 1
                     if (hasSingleChild) {
@@ -1005,6 +1026,10 @@ export function useTinymceAI(getEditor: () => any) {
           const paused = aiSessionControl.isPaused(sessionId)
           if (!(paused && polishPausedNotified.value)) {
             editor.notificationManager.open({ text: paused ? 'AI 润色已暂停' : 'AI 润色完成，请选择采用哪一版', type: 'info', timeout: 2000 })
+            // 添加到未选择会话列表
+            if (!paused) {
+              unselectedPolishSessions.value.add(sessionId)
+            }
           }
         }
       }, options?.style || '公文', '润色')

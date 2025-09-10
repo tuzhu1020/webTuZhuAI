@@ -91,6 +91,24 @@ export const useChatStore = defineStore("chat", () => {
 
             console.log("收到响应，状态:", session.response.status);
 
+            // 检查HTTP状态码，处理认证失败等错误
+            if (!session.response.ok) {
+                const errorText = await session.response.text();
+                let errorMessage = `请求失败: ${session.response.status} ${session.response.statusText}`;
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.message || errorMessage;
+                } catch {
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                console.error("API请求失败:", session.response.status, errorMessage);
+                
+                // 抛出错误，让调用方处理
+                throw new Error(`HTTP ${session.response.status}: ${errorMessage}`);
+            }
+
             if (
                 session.response.body &&
                 typeof session.response.body.getReader === "function"
