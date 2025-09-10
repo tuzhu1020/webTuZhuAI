@@ -2,7 +2,260 @@
 import { useUserStore } from "@/stores/user";
 import { PARTNER_IMAGE_URLS } from "@/constant/enum";
 import ImageSlider from "@/components/ImageSlider/index.vue";
+import { onMounted, onUnmounted } from 'vue';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
+
 const userStore = useUserStore();
+
+onMounted(() => {
+  // Hero section animations
+  gsap.set(".hero-title", { opacity: 0, y: 50 });
+  gsap.set(".hero-subtitle", { opacity: 0, y: 30 });
+  gsap.set(".hero-buttons", { opacity: 0, y: 40 });
+  gsap.set(".hero-logo", { opacity: 0, scale: 0.8, rotation: -10 });
+  gsap.set(".bg-decoration", { opacity: 0, scale: 0 });
+
+  // Hero timeline with stunning entrance
+  const heroTl = gsap.timeline({ delay: 0.3 });
+  heroTl
+    .to(".bg-decoration", { opacity: 0.1, scale: 1, duration: 2, ease: "power2.out" })
+    .to(".hero-logo", { opacity: 1, scale: 1, rotation: 0, duration: 1.2, ease: "elastic.out(1, 0.3)" }, "-=1.5")
+    .to(".hero-title", { opacity: 1, y: 0, duration: 1, ease: "power3.out" }, "-=0.8")
+    .to(".hero-subtitle", { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" }, "-=0.5")
+    .to(".hero-buttons", { opacity: 1, y: 0, duration: 0.6, ease: "back.out(1.7)" }, "-=0.3");
+
+  // Logo floating animation with complex motion
+  gsap.to(".hero-logo", {
+    y: -20,
+    rotation: 5,
+    duration: 3,
+    ease: "power1.inOut",
+    yoyo: true,
+    repeat: -1
+  });
+
+  // Background decorations complex floating
+  gsap.to(".bg-decoration", {
+    y: "random(-30, 30)",
+    x: "random(-20, 20)",
+    rotation: "random(-180, 180)",
+    duration: "random(4, 6)",
+    ease: "power1.inOut",
+    yoyo: true,
+    repeat: -1,
+    stagger: 0.5
+  });
+
+  // Feature cards scroll animations with 3D effect
+  gsap.set(".feature-card", { opacity: 0, y: 80, rotationX: 45, scale: 0.8 });
+  
+  ScrollTrigger.create({
+    trigger: ".features-section",
+    start: "top 80%",
+    onEnter: () => {
+      gsap.to(".feature-card", {
+        opacity: 1,
+        y: 0,
+        rotationX: 0,
+        scale: 1,
+        duration: 0.8,
+        ease: "power3.out",
+        stagger: 0.2
+      });
+    }
+  });
+
+  // Feature cards continuous floating with different patterns
+  gsap.to(".feature-card:nth-child(1)", {
+    y: -10,
+    rotation: 1,
+    duration: 2.5,
+    ease: "power1.inOut",
+    yoyo: true,
+    repeat: -1
+  });
+
+  gsap.to(".feature-card:nth-child(2)", {
+    y: -15,
+    rotation: -1,
+    duration: 3,
+    ease: "power1.inOut",
+    yoyo: true,
+    repeat: -1,
+    delay: 0.5
+  });
+
+  gsap.to(".feature-card:nth-child(3)", {
+    y: -12,
+    rotation: 0.5,
+    duration: 2.8,
+    ease: "power1.inOut",
+    yoyo: true,
+    repeat: -1,
+    delay: 1
+  });
+
+  // Video platform section with morphing entrance
+  gsap.set(".video-section", { opacity: 0 });
+  gsap.set(".video-content", { scale: 0.8, y: 50, rotationY: 45 });
+  
+  ScrollTrigger.create({
+    trigger: ".video-platform-section",
+    start: "top 85%",
+    onEnter: () => {
+      const videoTl = gsap.timeline();
+      videoTl
+        .to(".video-section", { opacity: 1, duration: 0.6 })
+        .to(".video-content", { 
+          scale: 1, 
+          y: 0, 
+          rotationY: 0,
+          duration: 1.2, 
+          ease: "elastic.out(1, 0.5)" 
+        }, "-=0.3");
+    }
+  });
+
+  // Video icon advanced pulsing with glow effect
+  gsap.to(".video-icon", {
+    scale: 1.15,
+    textShadow: "0 0 20px rgba(59, 130, 246, 0.5)",
+    duration: 1.5,
+    ease: "power2.inOut",
+    yoyo: true,
+    repeat: -1
+  });
+
+  // Partner section with wave entrance
+  gsap.set(".partners-title", { opacity: 0, y: 30, scale: 0.9 });
+  
+  ScrollTrigger.create({
+    trigger: ".partners-section",
+    start: "top 90%",
+    onEnter: () => {
+      gsap.to(".partners-title", {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.8,
+        ease: "power2.out"
+      });
+    }
+  });
+
+  // Enhanced button hover animations with magnetic effect
+  const buttons = document.querySelectorAll('.animated-button');
+  buttons.forEach(button => {
+    // Magnetic effect on mouse move
+    button.addEventListener('mousemove', (e) => {
+      const rect = button.getBoundingClientRect();
+      const x = e.clientX - rect.left - rect.width / 2;
+      const y = e.clientY - rect.top - rect.height / 2;
+      
+      gsap.to(button, {
+        x: x * 0.1,
+        y: y * 0.1,
+        duration: 0.3,
+        ease: "power2.out"
+      });
+    });
+    
+    button.addEventListener('mouseenter', () => {
+      gsap.to(button, { 
+        scale: 1.05, 
+        boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+        duration: 0.3, 
+        ease: "power2.out" 
+      });
+    });
+    
+    button.addEventListener('mouseleave', () => {
+      gsap.to(button, { 
+        scale: 1, 
+        x: 0,
+        y: 0,
+        boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+        duration: 0.3, 
+        ease: "power2.out" 
+      });
+    });
+  });
+
+  // Advanced parallax effects
+  gsap.to(".parallax-slow", {
+    yPercent: -50,
+    ease: "none",
+    scrollTrigger: {
+      trigger: "body",
+      start: "top bottom",
+      end: "bottom top",
+      scrub: 1
+    }
+  });
+
+  gsap.to(".parallax-fast", {
+    yPercent: -100,
+    rotation: 180,
+    ease: "none",
+    scrollTrigger: {
+      trigger: "body",
+      start: "top bottom",
+      end: "bottom top",
+      scrub: 2
+    }
+  });
+
+  // Scroll-triggered gradient animation
+  ScrollTrigger.create({
+    trigger: "body",
+    start: "top top",
+    end: "bottom bottom",
+    scrub: true,
+    onUpdate: (self) => {
+      const progress = self.progress;
+      const hue = progress * 60 + 220; // Transition from blue to purple
+      document.documentElement.style.setProperty('--scroll-hue', hue);
+    }
+  });
+
+  // Feature card hover animations with tilt effect
+  const featureCards = document.querySelectorAll('.feature-card');
+  featureCards.forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rotateX = (y - centerY) / 10;
+      const rotateY = (centerX - x) / 10;
+
+      gsap.to(card, {
+        rotationX: rotateX,
+        rotationY: rotateY,
+        transformPerspective: 1000,
+        duration: 0.3,
+        ease: "power2.out"
+      });
+    });
+
+    card.addEventListener('mouseleave', () => {
+      gsap.to(card, {
+        rotationX: 0,
+        rotationY: 0,
+        duration: 0.3,
+        ease: "power2.out"
+      });
+    });
+  });
+});
+
+onUnmounted(() => {
+  ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+});
 </script>
 
 <template>
@@ -11,29 +264,29 @@ const userStore = useUserStore();
     <div class="bg-gradient-to-r from-blue-600 to-purple-700 py-20 relative overflow-hidden">
       <!-- 装饰性背景元素 -->
       <div class="absolute top-0 left-0 right-0 bottom-0 opacity-10">
-        <div class="absolute top-10 left-10 w-40 h-40 rounded-full bg-white blur-3xl"></div>
-        <div class="absolute bottom-10 right-10 w-60 h-60 rounded-full bg-blue-300 blur-3xl"></div>
+        <div class="bg-decoration absolute top-10 left-10 w-40 h-40 rounded-full bg-white blur-3xl parallax-slow"></div>
+        <div class="bg-decoration absolute bottom-10 right-10 w-60 h-60 rounded-full bg-blue-300 blur-3xl parallax-fast"></div>
       </div>
 
       <div class="max-w-1280 mx-auto px-6 flex flex-col md:flex-row items-center justify-between relative z-10">
         <div class="text-center md:text-left mb-12 md:mb-0 md:w-1/2">
-          <h1 class="mb-6 text-48 md:text-56 font-bold text-white leading-tight">
+          <h1 class="hero-title mb-6 text-48 md:text-56 font-bold text-white leading-tight">
             <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-200">智能 土猪AI 助手nb</span>
           </h1>
-          <p class="mb-8 text-18 text-blue-100 max-w-512 leading-relaxed">
+          <p class="hero-subtitle mb-8 text-18 text-blue-100 max-w-512 leading-relaxed">
             让 AI 为您的工作和学习提供智能支持，提高效率，解决问题，让每一天都更加高效
           </p>
-          <div class="flex flex-wrap gap-4 justify-center md:justify-start">
-            <RouterLink to="/chat" class="rounded-full bg-white px-8 py-4 text-16 font-semibold text-blue-700 transition-all duration-300 hover:bg-blue-50 hover:shadow-xl hover:shadow-blue-700/20 transform hover:-translate-y-1">
+          <div class="hero-buttons flex flex-wrap gap-4 justify-center md:justify-start">
+            <RouterLink to="/chat" class="animated-button rounded-full bg-white px-8 py-4 text-16 font-semibold text-blue-700 transition-all duration-300 hover:bg-blue-50 hover:shadow-xl hover:shadow-blue-700/20">
               立即体验
             </RouterLink>
-            <RouterLink to="/video" class="rounded-full border-2 border-white/70 bg-white/10 backdrop-blur-sm px-8 py-4 text-16 font-semibold text-white transition-all duration-300 hover:bg-white/20 hover:shadow-xl hover:shadow-purple-700/20 transform hover:-translate-y-1">
+            <RouterLink to="/video" class="animated-button rounded-full border-2 border-white/70 bg-white/10 backdrop-blur-sm px-8 py-4 text-16 font-semibold text-white transition-all duration-300 hover:bg-white/20 hover:shadow-xl hover:shadow-purple-700/20">
               视频平台
             </RouterLink>
           </div>
         </div>
         <div class="w-full md:w-1/2 flex justify-center">
-          <img src="@/assets/images/logo.svg" alt="AI助手" class="w-4/5 max-w-md transform hover:scale-105 transition-all duration-700 drop-shadow-2xl">
+          <img src="@/assets/images/logo.svg" alt="AI助手" class="hero-logo w-4/5 max-w-md drop-shadow-2xl">
         </div>
       </div>
     </div>
@@ -49,7 +302,7 @@ const userStore = useUserStore();
     </div>
 
     <!-- 核心特点 - 现代卡片 -->
-    <div class="py-20 bg-gray-50">
+    <div class="features-section py-20 bg-gray-50">
       <div class="max-w-1280 mx-auto px-6">
         <h2 class="mb-6 text-center text-36 font-bold text-gray-800">
           <span class="relative inline-block">
@@ -63,7 +316,7 @@ const userStore = useUserStore();
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
           <!-- 特点 1 -->
-          <div class="bg-white rounded-2xl p-8 shadow-lg transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2 border-t-4 border-blue-500">
+          <div class="feature-card bg-white rounded-2xl p-8 shadow-lg transition-all duration-300 border-t-4 border-blue-500">
             <div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-blue-50 text-blue-500 mb-6">
               <span class="text-32">💡</span>
             </div>
@@ -76,7 +329,7 @@ const userStore = useUserStore();
           </div>
 
           <!-- 特点 2 -->
-          <div class="bg-white rounded-2xl p-8 shadow-lg transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2 border-t-4 border-purple-500">
+          <div class="feature-card bg-white rounded-2xl p-8 shadow-lg transition-all duration-300 border-t-4 border-purple-500">
             <div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-purple-50 text-purple-500 mb-6">
               <span class="text-32">🚀</span>
             </div>
@@ -89,7 +342,7 @@ const userStore = useUserStore();
           </div>
 
           <!-- 特点 3 -->
-          <div class="bg-white rounded-2xl p-8 shadow-lg transition-all duration-300 hover:shadow-xl transform hover:-translate-y-2 border-t-4 border-indigo-500">
+          <div class="feature-card bg-white rounded-2xl p-8 shadow-lg transition-all duration-300 border-t-4 border-indigo-500">
             <div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-indigo-50 text-indigo-500 mb-6">
               <span class="text-32">🎬</span>
             </div>
@@ -105,11 +358,11 @@ const userStore = useUserStore();
     </div>
 
     <!-- 视频平台引导区 -->
-    <div class="py-20 bg-white relative overflow-hidden">
-      <div class="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-blue-50 to-transparent opacity-70"></div>
-      <div class="absolute bottom-0 left-0 w-1/3 h-full bg-gradient-to-t from-purple-50 to-transparent opacity-70"></div>
+    <div class="video-platform-section py-20 bg-white relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-blue-50 to-transparent opacity-70 parallax-slow"></div>
+      <div class="absolute bottom-0 left-0 w-1/3 h-full bg-gradient-to-t from-purple-50 to-transparent opacity-70 parallax-fast"></div>
 
-      <div class="max-w-1280 mx-auto px-6 relative z-10">
+      <div class="video-section max-w-1280 mx-auto px-6 relative z-10">
         <div class="max-w-768 mx-auto text-center mb-12">
           <h2 class="mb-6 text-36 font-bold text-gray-800">
             视频平台
@@ -119,13 +372,13 @@ const userStore = useUserStore();
           </p>
         </div>
 
-        <div class="bg-gradient-to-br from-white to-gray-50 rounded-3xl shadow-xl p-8 max-w-4xl mx-auto overflow-hidden group">
-          <div class="aspect-video bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl mb-8 flex items-center justify-center relative overflow-hidden group-hover:shadow-lg transition-all duration-500">
-            <div class="text-84 group-hover:scale-110 transition-transform duration-500">🎬</div>
-            <div class="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-purple-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div class="video-content bg-gradient-to-br from-white to-gray-50 rounded-3xl shadow-xl p-8 max-w-4xl mx-auto overflow-hidden group">
+          <div class="aspect-video bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl mb-8 flex items-center justify-center relative overflow-hidden">
+            <div class="video-icon text-84">🎬</div>
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-purple-600/5"></div>
           </div>
           <div class="flex justify-center">
-            <RouterLink to="/video" class="inline-block rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-10 py-4 text-18 font-semibold text-white transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20 transform hover:-translate-y-1">
+            <RouterLink to="/video" class="animated-button inline-block rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-10 py-4 text-18 font-semibold text-white transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20">
               前往视频平台
             </RouterLink>
           </div>
@@ -133,9 +386,9 @@ const userStore = useUserStore();
       </div>
     </div>
    <!-- 合作伙伴展示 -->
-    <div class="py-16 bg-gray-50">
+    <div class="partners-section py-16 bg-gray-50">
       <div class=" mx-auto px-4">
-        <h2 class="text-30 font-bold text-center text-gray-800 mb-12">待合作伙伴</h2>
+        <h2 class="partners-title text-30 font-bold text-center text-gray-800 mb-12">待合作伙伴</h2>
         <div class="space-y-8 bg-gray-100 ">
           <ImageSlider :images="PARTNER_IMAGE_URLS.slider1" direction="left" />
           <ImageSlider :images="PARTNER_IMAGE_URLS.slider2" direction="right" />

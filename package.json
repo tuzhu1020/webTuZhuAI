@@ -28,6 +28,7 @@
     "beasties": "^0.2.0",
     "core-js": "^3.40.0",
     "echarts": "^6.0.0",
+    "gsap": "^3.13.0",
     "html-to-docx": "^1.8.0",
     "mammoth": "^1.10.0",
     "marked": "^15.0.12",
