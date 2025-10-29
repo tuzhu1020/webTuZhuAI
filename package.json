@@ -30,6 +30,7 @@
     "echarts": "^6.0.0",
     "gsap": "^3.13.0",
     "html-to-docx": "^1.8.0",
+    "lenis": "^1.1.17",
     "mammoth": "^1.10.0",
     "marked": "^15.0.12",
     "md-editor-v3": "^5.2.3",

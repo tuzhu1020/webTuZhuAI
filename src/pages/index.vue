@@ -2,6 +2,7 @@
 import { useUserStore } from "@/stores/user";
 import { PARTNER_IMAGE_URLS } from "@/constant/enum";
 import ImageSlider from "@/components/ImageSlider/index.vue";
+import ProcessCards from "@/components/ProcessCards/index.vue";
 import { onMounted, onUnmounted } from 'vue';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
