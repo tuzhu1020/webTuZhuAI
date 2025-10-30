@@ -3,7 +3,7 @@ import { useUserStore } from "@/stores/user";
 import { PARTNER_IMAGE_URLS } from "@/constant/enum";
 import ImageSlider from "@/components/ImageSlider/index.vue";
 import ProcessCards from "@/components/ProcessCards/index.vue";
-import { onMounted, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -12,10 +12,44 @@ gsap.registerPlugin(ScrollTrigger);
 const userStore = useUserStore();
 const isMobile = ref(false);
 
+// 挖空效果相关变量
+const bgUrl = new URL('@/assets/images/login-bg.jpg', import.meta.url).href;
+const containerRef = ref(null);
+const scrollBoxRef = ref(null);
+const cutoutBoxRef = ref(null);
+
+// 挖空盒子样式对象
+const cutoutStyle = reactive({
+  backgroundImage: `url(${bgUrl})`,
+  backgroundSize: 'cover',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'scroll',
+  backgroundPosition: 'center 0px',
+  backgroundClip: 'content-box',
+  zIndex: 2
+});
+
 // 检测是否为移动设备
 const checkIsMobile = () => {
   isMobile.value = window.innerWidth < 768;
 };
+
+// 挖空效果滚动处理函数
+function handleScroll() {
+  if (!scrollBoxRef.value || !cutoutBoxRef.value) return;
+
+  const scrollTop = scrollBoxRef.value.scrollTop;
+  // cutout 相对于 scrollBox 内容的 offsetTop
+  const offsetTop = cutoutBoxRef.value.offsetTop;
+
+  // 计算背景位置：使背景与容器对齐
+  const bgY = -(offsetTop - scrollTop);
+
+  // 更新 cutout 背景位置
+  cutoutStyle.backgroundPosition = `center ${bgY}px`;
+}
+
+let resizeObserver = null;
 
 onMounted(() => {
   checkIsMobile();
@@ -266,16 +300,78 @@ onMounted(() => {
       });
     });
   });
+
+  // 挖空效果初始化
+  nextTick().then(() => {
+    handleScroll();
+
+    // 监听 resize：元素位置变化时重新计算
+    if (window.ResizeObserver) {
+      resizeObserver = new ResizeObserver(() => {
+        handleScroll();
+      });
+      if (scrollBoxRef.value) resizeObserver.observe(scrollBoxRef.value);
+      if (cutoutBoxRef.value) resizeObserver.observe(cutoutBoxRef.value);
+    } else {
+      window.addEventListener('resize', handleScroll);
+    }
+  });
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkIsMobile);
   ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+  
+  // 清理挖空效果的ResizeObserver
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  } else {
+    window.removeEventListener('resize', handleScroll);
+  }
 });
 </script>
 
 <template>
   <div class="overflow-y-auto">
+    <!-- 挖空效果区域 -->
+    <div
+      ref="containerRef"
+      class="relative w-full h-[600px] overflow-hidden"
+      :style="`background-image: url(${bgUrl}); background-size: cover; background-position: center 0px;`"
+    >
+      <!-- 大盒子（白色覆盖，可滚动） -->
+      <div
+        ref="scrollBoxRef"
+        class="absolute inset-0 overflow-y-auto p-4"
+        style="background-color: rgba(255,255,255,1);"
+        @scroll="handleScroll"
+      >
+        <div class="bg-white p-4 m-2 border border-gray-300 rounded h-80">小盒子</div>
+        <div class="bg-white p-4 m-2 border border-gray-300 rounded h-80">小盒子</div>
+        <div class="bg-white p-4 m-2 border border-gray-300 rounded h-80">小盒子</div>
+        <div class="bg-white p-4 m-2 border border-gray-300 rounded h-80">小盒子</div>
+        <div class="bg-white p-4 m-2 border border-gray-300 rounded h-80">小盒子</div>
+
+        <!-- 挖空盒子：用 class 绑定样式 -->
+        <div
+          ref="cutoutBoxRef"
+          class="cutout-box relative p-4 m-2 border border-blue-500 rounded min-h-[150px]"
+          :style="cutoutStyle"
+        >
+          <!-- <span class="bg-white px-2 py-1 rounded text-sm relative z-10">挖空盒子可以看到图片</span> -->
+        </div>
+
+        <div
+          class="bg-white p-4 m-2 border border-gray-300 rounded h-80"
+          v-for="i in 6"
+          :key="i"
+        >
+          小盒子
+        </div>
+      </div>
+    </div>
+
     <!-- 主横幅 - 现代简约风格 -->
     <div class="bg-gradient-to-r from-blue-600 to-purple-700 py-12 md:py-20 relative overflow-hidden">
       <!-- 装饰性背景元素 -->
@@ -421,3 +517,16 @@ meta:
   layout: landing
   requiresAuth: false
 </route>
+
+<style scoped>
+/* 挖空盒子样式：让背景显示在内容区域，且保证在最上层显示 */
+.cutout-box {
+  /* 如果你想挖空看上去更像"洞"，可以把盒子内部背景透明或者设置 border 等 */
+  /* background-clip 已在内联样式设置 */
+  position: relative;
+  z-index: 2;
+  /* 可根据视觉需要调整内边距与背景裁剪 */
+  -webkit-background-clip: content-box;
+  background-clip: content-box;
+}
+</style>
