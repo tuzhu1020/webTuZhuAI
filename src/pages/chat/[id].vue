@@ -45,6 +45,8 @@ const isThink = ref<boolean>(false);
 const isRepository = ref<boolean>(false);
 const content = ref<string>("");
 const pauseing = ref<boolean>(true);
+const isMobile = ref<boolean>(false);
+const runnerFullscreen = ref<boolean>(false);
 const [messageApi, contextHolder] = message.useMessage();
 const chatMessageList = ref<Array<any>>([
   //   {
@@ -84,11 +86,25 @@ const searchResultData = ref<any[]>([]);
 const runnerHtml = ref<string>("");
 function onRunHtml(payload: string) {
   runnerHtml.value = payload;
+  // 移动端默认全屏
+  if (isMobile.value) {
+    runnerFullscreen.value = true;
+  }
 }
 
 function clearRunner() {
   runnerHtml.value = "";
+  runnerFullscreen.value = false;
 }
+
+function toggleRunnerFullscreen() {
+  runnerFullscreen.value = !runnerFullscreen.value;
+}
+
+// 检测屏幕尺寸
+const checkIsMobile = () => {
+  isMobile.value = window.innerWidth < 768;
+};
 
 const chatId = computed(() => route.params?.id as string);
 // const isFirstEntry = computed(() => !chatMessageList.value.length)
@@ -622,6 +638,12 @@ function handleVisibleResult(data: any) {
 
 onMounted(() => {
   adjustInputWidth();
+  checkIsMobile();
+  window.addEventListener('resize', checkIsMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkIsMobile);
 });
 
 watch(chatTitle, () => {
@@ -631,42 +653,42 @@ watch(chatTitle, () => {
 
 <template>
     <div class="h-screen w-full flex overflow-hidden">
-        <div :class="['flex flex-col overflow-hidden transition-all duration-300 ease-in-out', runnerHtml ? 'w-[56%]' : 'w-full']">
+        <div :class="['flex flex-col overflow-hidden transition-all duration-300 ease-in-out', runnerHtml && !isMobile && !runnerFullscreen ? 'w-[56%]' : 'w-full']">
             <div class="m-auto h-screen w-full flex flex-col">
                 <!-- 标题 -->
-                <div class="relative inline-block w-full self-center justify-center p-t-24">
+                <div class="relative inline-block w-full self-center justify-center p-t-16 md:p-t-24 px-4 md:px-0">
                     <div v-show="chatTitle || oldChatTitle" ref="titleInput"
-                        class="chat-title m-auto m-auto flex cursor-pointer overflow-hidden text-ellipsis rounded-12 p-x-12 p-y-8 text-center text-center text-nowrap text-16 font-600 tracking-widest">
-                        <AInput v-model:value="chatTitle" type="text" class="m-auto !min-w-200 border-0 text-center"
-                            size="large" placeholder="请输入标签" :maxlength="32" @focus="oldChatTitle = chatTitle"
+                        class="chat-title m-auto flex cursor-pointer overflow-hidden text-ellipsis rounded-12 p-x-8 md:p-x-12 p-y-6 md:p-y-8 text-center text-nowrap text-14 md:text-16 font-600 tracking-widest">
+                        <AInput v-model:value="chatTitle" type="text" class="m-auto !min-w-150 md:!min-w-200 border-0 text-center text-14 md:text-16"
+                            :size="isMobile ? 'middle' : 'large'" placeholder="请输入标签" :maxlength="32" @focus="oldChatTitle = chatTitle"
                             @blur="handleUpdateTitle" @input="adjustInputWidth" />
                     </div>
                     <div
-                        class="absolute bottom-0 z-1 h-32 w-full translate-y-[100%] from-[rgb(255,255,255)] bg-gradient-to-b opacity-70" />
+                        class="absolute bottom-0 z-1 h-24 md:h-32 w-full translate-y-[100%] from-[rgb(255,255,255)] bg-gradient-to-b opacity-70" />
                 </div>
 
                 <!-- 聊天框 -->
-                <div ref="chatContainer" class="w-full flex-1 overflow-y-auto p-b-40 p-t-42">
+                <div ref="chatContainer" class="w-full flex-1 overflow-y-auto p-b-32 md:p-b-40 p-t-32 md:p-t-42 px-4 md:px-0">
                     <ASpin :spinning="spinning">
-                        <div class="m-auto w-[var(--content-max-width)]">
+                        <div class="m-auto w-full md:w-[var(--content-max-width)]">
                             <template v-for="(item, index) in chatMessageList">
                                 <div v-if="item.type === 'my'" :key="index"
-                                    class="group my m-b-16 flex justify-end whitespace-pre-wrap break-all p-b-32">
+                                    class="group my m-b-12 md:m-b-16 flex justify-end whitespace-pre-wrap break-all p-b-24 md:p-b-32">
                                     <div
-                                        class="mr-12 opacity-0 transition-all duration-800 group-hover:block group-hover:opacity-100">
+                                        class="mr-8 md:mr-12 opacity-0 transition-all duration-800 group-hover:block group-hover:opacity-100">
                                         <Tools v-model="item.tools" @copy="handleToolsCopy(item.content)"
                                             @edit="content = item.content" />
                                     </div>
-                                    <div class="rounded-14 bg-[var(--chat-my-bg)] p-x-20 p-y-12 text-16 lh-2em">
+                                    <div class="rounded-14 bg-[var(--chat-my-bg)] p-x-12 md:p-x-20 p-y-10 md:p-y-12 text-14 md:text-16 lh-2em max-w-[85%] md:max-w-none">
                                         {{ item.content }}
                                     </div>
                                 </div>
                                 <div v-else :key="item.id"
-                                    :class="[index + 1 === chatMessageList.length && loading ? 'm-b-0 p-b-0' : ' m-b-16 p-b-32']"
+                                    :class="[index + 1 === chatMessageList.length && loading ? 'm-b-0 p-b-0' : 'm-b-12 md:m-b-16 p-b-24 md:p-b-32']"
                                     class="robot flex items-start justify-start">
                                     <div
-                                        class="m-r-16 border-width-1 border-color-#d5e4ff rounded-50% border-style-solid p-2">
-                                        <img class="h-28 w-28" src="@/assets/images/logo.svg">
+                                        class="m-r-10 md:m-r-16 border-width-1 border-color-#d5e4ff rounded-50% border-style-solid p-2">
+                                        <img class="h-24 w-24 md:h-28 md:w-28" src="@/assets/images/logo.svg">
                                     </div>
                                     <div class="group">
                                         <template v-for="(cur, i) in item.choices" :key="cur.id">
@@ -705,7 +727,7 @@ watch(chatTitle, () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="no-think whitespace-normal lh-2em w-[var(--content-max-width)]">
+                                            <div class="no-think whitespace-normal lh-2em w-full md:w-[var(--content-max-width)] text-14 md:text-16">
                                                 <MarkdownWithECharts :content="cur._content" @run-html="onRunHtml" />
                                             </div>
                                         </template>
@@ -721,11 +743,11 @@ watch(chatTitle, () => {
                             </template>
                         </div>
 
-                        <div v-if="chatMessageList.length && !loading" class="text-center">
-                            <div class="h-32 flex-inline cursor-pointer items-center rounded-14 bg-[var(--primary-bg-color)] p-x-10 text-center transition-all duration-600 hover:bg-[var(--button-hover)]"
+                        <div v-if="chatMessageList.length && !loading" class="text-center px-4">
+                            <div class="h-36 md:h-32 flex-inline cursor-pointer items-center rounded-14 bg-[var(--primary-bg-color)] p-x-12 md:p-x-10 p-y-8 md:p-y-0 text-center transition-all duration-600 hover:bg-[var(--button-hover)]"
                                 @click="router.push('/chat')">
-                                <img class="m-r-10 h-18 w-18" src="@/assets/images/add_new_icon.svg">
-                                <div class="text-14 color-[var(--primary-color)]">
+                                <img class="m-r-8 md:m-r-10 h-16 md:h-18 w-16 md:w-18" src="@/assets/images/add_new_icon.svg">
+                                <div class="text-13 md:text-14 color-[var(--primary-color)]">
                                     开启新对话
                                 </div>
                             </div>
@@ -734,30 +756,30 @@ watch(chatTitle, () => {
                 </div>
 
                 <!-- 发送框 -->
-                <div>
+                <div class="px-4 md:px-0">
                     <div class="flex">
-                        <div class="w-70"></div>
+                        <div class="hidden md:block w-70"></div>
                         <div
-                            class="m-auto w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-24 bg-[var(--label-bg-color)] p-10 shadow-inner">
+                            class="m-auto w-full md:w-[var(--content-max-width)] flex flex-col items-start overflow-hidden rounded-16 md:rounded-24 bg-[var(--label-bg-color)] p-8 md:p-10 shadow-inner">
                             <ATextarea v-model:value="content" placeholder="给 土猪  发送消息" autofocus
-                                :autoSize="{ minRows: 2, maxRows: 10 }"
-                                class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-16! focus:border-0! hover:border-0! focus:shadow-none!"
+                                :autoSize="{ minRows: isMobile ? 1 : 2, maxRows: isMobile ? 6 : 10 }"
+                                class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-14! md:text-16! focus:border-0! hover:border-0! focus:shadow-none!"
                                 @keydown.enter.prevent="handleEnterSendChat" />
-                            <div class="mt-10 w-full flex items-center justify-between">
+                            <div class="mt-8 md:mt-10 w-full flex items-center justify-between">
                                 <div class="flex items-center justify-start">
                                     <ATooltip :key="Math.random()" placement="left">
                                         <template v-if="!isThink" #title>
-                                            <span class="text-12">调用新模型 Deepseek-R1，解决推理问题</span>
+                                            <span class="text-11 md:text-12">调用新模型 Deepseek-R1，解决推理问题</span>
                                         </template>
                                         <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
-                                            class="h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-14 border-solid p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
+                                            class="h-24 md:h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-12 md:rounded-14 border-solid p-x-6 md:p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
                                             @click="isThink = !isThink">
                                             <img v-if="!isThink" src="@/assets/images/think_icon.svg"
-                                                class="m-r-4 h-18 w-18 cursor-pointer">
+                                                class="m-r-3 md:m-r-4 h-14 md:h-18 w-14 md:w-18 cursor-pointer">
                                             <img v-else src="@/assets/images/think_active_icon.svg"
-                                                class="m-r-4 h-18 w-18 cursor-pointer">
-                                            <div class="pt-2 vertical-middle text-12">
-                                                深度思考(R1)
+                                                class="m-r-3 md:m-r-4 h-14 md:h-18 w-14 md:w-18 cursor-pointer">
+                                            <div class="pt-2 vertical-middle text-11 md:text-12">
+                                                {{ isMobile ? 'R1' : '深度思考(R1)' }}
                                             </div>
                                         </div>
                                     </ATooltip>
@@ -782,15 +804,15 @@ watch(chatTitle, () => {
                                     <div>
                                         <ATooltip placement="top">
                                             <template v-if="!content" #title>
-                                                <span>{{ !pauseing ? '停止生成' : '请输入你的问题' }}</span>
+                                                <span class="text-11 md:text-12">{{ !pauseing ? '停止生成' : '请输入你的问题' }}</span>
                                             </template>
                                             <div :class="[content || !pauseing ? 'cursor-pointer bg-[var(--primary-color)] hover:opacity-80 transition-all duration-300' : 'cursor-not-allowed bg-[rgb(214,222,232)]']"
-                                                class="h-32 w-32 flex items-center justify-center rounded-50%"
+                                                class="h-28 md:h-32 w-28 md:w-32 flex items-center justify-center rounded-50%"
                                                 @click="sendChat">
-                                                <ArrowUpOutlined v-if="!loading" class="text-#fafafa" />
-                                                <PauseOutlined v-else-if="!pauseing" class="text-#fafafa"
+                                                <ArrowUpOutlined v-if="!loading" class="text-#fafafa text-14 md:text-16" />
+                                                <PauseOutlined v-else-if="!pauseing" class="text-#fafafa text-14 md:text-16"
                                                     @click="handlePause" />
-                                                <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa" />
+                                                <LoadingOutlined v-else class="cursor-not-allowed text-#fafafa text-14 md:text-16" />
                                             </div>
                                         </ATooltip>
                                     </div>
@@ -799,7 +821,7 @@ watch(chatTitle, () => {
                         </div>
                     </div>
 
-                    <footer class="m-y-6 text-center text-12 text-[var(--text-desc-color)]">
+                    <footer class="m-y-4 md:m-y-6 text-center text-11 md:text-12 text-[var(--text-desc-color)]">
                         内容由 AI 生成，请仔细甄别
                     </footer>
                 </div>
@@ -809,18 +831,42 @@ watch(chatTitle, () => {
             <contextHolder />
         </div>
 
-        <!-- 运行窗口 - 只有有内容时才显示 -->
+        <!-- 运行窗口 - 桌面端分屏或移动端全屏 -->
         <Transition name="runner-slide">
-            <div v-if="runnerHtml"
-                class="w-[44%] h-screen overflow-hidden border-l-2 border-l-solid border-[rgba(0,0,0,0.4)] bg-white transition-all duration-300 ease-in-out">  
+            <div v-if="runnerHtml && !runnerFullscreen"
+                class="hidden md:block w-[44%] h-screen overflow-hidden border-l-2 border-l-solid border-[rgba(0,0,0,0.4)] bg-white transition-all duration-300 ease-in-out">  
                 <!-- 运行窗口头部 -->
                 <div class="flex items-center justify-between p-3 border-b border-[rgba(0,0,0,.06)] bg-gray-50">
-                    <div class="text-16 font-medium text-gray-700">HTML 运行结果</div>
-                    <div @click="clearRunner" class="p-1 hover:bg-gray-200 rounded transition-colors" title="关闭运行窗口">
-                        <CloseOutlined class="text-[20px]" />
+                    <div class="text-14 md:text-16 font-medium text-gray-700">HTML 运行结果</div>
+                    <div @click="clearRunner" class="p-1 hover:bg-gray-200 rounded transition-colors cursor-pointer" title="关闭运行窗口">
+                        <CloseOutlined class="text-[18px] md:text-[20px]" />
                     </div>
                 </div>
                 <HtmlRunner :html="runnerHtml" class="h-[calc(100vh-57px)]" />
+            </div>
+        </Transition>
+
+        <!-- 移动端全屏运行窗口 -->
+        <Transition name="runner-fullscreen">
+            <div v-if="runnerHtml && (isMobile || runnerFullscreen)"
+                class="fixed inset-0 z-999 bg-white">
+                <!-- 运行窗口头部 -->
+                <div class="flex items-center justify-between p-3 md:p-4 border-b border-[rgba(0,0,0,.06)] bg-gray-50">
+                    <div class="text-14 md:text-16 font-medium text-gray-700">HTML 运行结果</div>
+                    <div class="flex items-center gap-2">
+                        <div v-if="!isMobile" @click="toggleRunnerFullscreen" 
+                            class="p-1 hover:bg-gray-200 rounded transition-colors cursor-pointer" 
+                            title="退出全屏">
+                            <span class="text-[18px] md:text-[20px]">↙</span>
+                        </div>
+                        <div @click="clearRunner" 
+                            class="p-1 hover:bg-gray-200 rounded transition-colors cursor-pointer" 
+                            title="关闭运行窗口">
+                            <CloseOutlined class="text-[18px] md:text-[20px]" />
+                        </div>
+                    </div>
+                </div>
+                <HtmlRunner :html="runnerHtml" class="h-[calc(100vh-49px)] md:h-[calc(100vh-57px)]" />
             </div>
         </Transition>
     </div>
@@ -832,15 +878,12 @@ watch(chatTitle, () => {
 }
 
 .chat-title {
-  // min-width: 120px;
-  // max-width: 360px;
   margin: auto;
 
   :deep(.ant-input) {
     transition: width 0.2s;
     border-color: transparent;
     cursor: pointer;
-    font-size: 16px;
     font-weight: 600;
     margin: auto;
 
@@ -870,6 +913,24 @@ watch(chatTitle, () => {
 .runner-slide-leave-from {
   opacity: 1;
   transform: translateX(0);
+}
+
+/* Runner 全屏动画 */
+.runner-fullscreen-enter-from,
+.runner-fullscreen-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.runner-fullscreen-enter-active,
+.runner-fullscreen-leave-active {
+  transition: all 0.3s ease-in-out;
+}
+
+.runner-fullscreen-enter-to,
+.runner-fullscreen-leave-from {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>
 

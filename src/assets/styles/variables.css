@@ -28,3 +28,11 @@
     --chat-think-text: #8b8b8b;
     --chat-think-border: #e5e5e5;
 }
+
+/* 移动端响应式变量 */
+@media (max-width: 768px) {
+    :root {
+        --content-max-width: 100%;
+        --sidebar-width: 0px;
+    }
+}
