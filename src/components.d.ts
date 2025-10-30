@@ -20,6 +20,7 @@ declare module 'vue' {
     ParticlesClock: typeof import('./components/ParticlesClock/index.vue')['default']
     ProcessCards: typeof import('./components/ProcessCards/index.vue')['default']
     'ProcessCards实现文档': typeof import('./components/ProcessCards/ProcessCards实现文档.md')['default']
+    README: typeof import('./components/ProcessCards/README.md')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     Tinymce: typeof import('./components/Tinymce/index.vue')['default']
