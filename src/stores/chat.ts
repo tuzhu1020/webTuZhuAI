@@ -332,6 +332,7 @@ export const useChatStore = defineStore("chat", () => {
             for (const line of lines) {
                 if (line.trim()) {
                     const data = parseJsonLikeData(line);
+                    console.log('解析到数据:', data ? '有效数据' : '无效数据', data?.choices?.[0]?.delta?.content?.substring(0, 50));
                     if (data) {
                         if (data.done) {
                             console.log("接收到[DONE]标记");
@@ -346,11 +347,14 @@ export const useChatStore = defineStore("chat", () => {
                             break;
                         }
 
+                        console.log('处理数据chunk, choices数量:', data.choices?.length, 'finish_reason:', data.choices?.[0]?.finish_reason);
                         if (chatMessageList && chatMessageList.length > 0) {
                             // 找到最后一个AI消息
                             const lastChatItem = chatMessageList[chatMessageList.length - 1];
+                            console.log('最后一条消息role:', lastChatItem?.role, '期望role:', AI_IDENTITY_AI_VALUE);
                             if (lastChatItem?.role === AI_IDENTITY_AI_VALUE) {
                                 // 处理数据并更新UI
+                                console.log('调用processChunk处理数据');
                                 processChunk(data, lastChatItem, session, chatMessageList);
                             } else {
                                 // 如果最后一条不是AI消息，检查是否有必要添加AI消息

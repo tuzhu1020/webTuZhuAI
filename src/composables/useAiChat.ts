@@ -139,13 +139,13 @@ export function useAiChat() {
     ];
   }
   function selectModel(opts?: { reasoning?: boolean; fallback?: string }) {
-    const { reasoning = false, fallback = 'deepseek-chat' } = opts || {};
+    const { reasoning = false, fallback = 'gpt-4o-mini-ca' } = opts || {};
     return reasoning ? 'deepseek-reasoner' : fallback;
   }
 
   async function streamChat(params: StreamChatParams) {
     const sessionId = params.sessionId || `chat-${Date.now()}`;
-    const model = params.model || 'deepseek-chat';
+    const model = params.model || 'gpt-4o-mini-ca';
 
     // 确保有一个可写入的 chatMessageList（用于 stores/chat 的 processChunk 写入）
     const list = params.chatMessageList || [
@@ -220,7 +220,7 @@ export function useAiChat() {
     return streamChat({
       sessionId: opts?.sessionId,
       messages,
-      model: opts?.model || 'deepseek-chat',
+      model: opts?.model || 'gpt-4o-mini-ca',
       chatMessageList: [ { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true } ],
       onDelta: opts?.onDelta,
       onDone: opts?.onDone,
@@ -250,7 +250,7 @@ export function useAiChat() {
     return streamChat({
       sessionId: opts?.sessionId,
       messages,
-      model: opts?.model || 'deepseek-chat',
+      model: opts?.model || 'gpt-4o-mini-ca',
       chatMessageList: [ { role: AI_IDENTITY_AI_VALUE, choices: [], loading: true } ],
       onDelta: opts?.onDelta,
       onDone: opts?.onDone,

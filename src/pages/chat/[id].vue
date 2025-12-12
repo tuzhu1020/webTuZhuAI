@@ -9,8 +9,11 @@ import reChatNameService from "@/service/chat/reChatNameService";
 import saveChatRecordService from "@/service/chat/saveChatRecordService";
 
 import { useUserStore } from "@/stores/user";
+import { useModelStore } from "@/stores/model";
 
 import SearchResult from "@/weights/Chat/SearchResult/index.vue";
+import ModelSelector from "@/components/ModelSelector/index.vue";
+import getModelsService from "@/service/chat/getModelsService";
 import Tools from "@/weights/Chat/Tools/index.vue";
 import MarkdownWithECharts from "@/components/MarkdownWithECharts/index.vue";
 import HtmlRunner from "@/components/HtmlRunner/index.vue";  
@@ -80,6 +83,7 @@ const spinning = ref<boolean>(false);
 const chatTitle = ref<string>("");
 const oldChatTitle = ref<string>();
 const userStore = useUserStore();
+const modelStore = useModelStore();
 const visibleSearchResult = ref<boolean>(false);
 const searchResultData = ref<any[]>([]);
 
@@ -107,6 +111,18 @@ const checkIsMobile = () => {
 };
 
 const chatId = computed(() => route.params?.id as string);
+
+async function loadAvailableModels() {
+  try {
+    modelStore.setModelsLoading(true);
+    const models = await getModelsService();
+    modelStore.setAvailableModels(models);
+  } catch (error) {
+    console.error('加载模型列表失败:', error);
+  } finally {
+    modelStore.setModelsLoading(false);
+  }
+}
 // const isFirstEntry = computed(() => !chatMessageList.value.length)
 
 watch(
@@ -182,18 +198,48 @@ function parseJsonLikeData(content: any) {
 }
 
 function parseMergeObj(lastChatItem: any, data: any) {
+  console.log('parseMergeObj 被调用');
+  console.log('lastChatItem.choices:', lastChatItem.choices);
+  console.log('data.choices:', data.choices);
+  console.log('data.choices[0]?.delta?.content:', data.choices?.[0]?.delta?.content);
+  
   const newData = Object.assign({}, lastChatItem);
-  newData.choices.forEach((item, index) => {
-    const nextData = data.choices[index]?.delta?.content || "";
+  
+  // 确保 choices 数组存在且长度足够
+  if (!newData.choices || newData.choices.length === 0) {
+    console.log('初始化 newData.choices');
+    newData.choices = data.choices.map(() => ({
+      delta: { content: "", reasoning_content: "" },
+      _thinkContent: [],
+      _content: "",
+    }));
+  }
+  
+  // 处理每个 choice
+  data.choices.forEach((dataChoice: any, index: number) => {
+    // 如果 newData.choices 中没有对应索引的项，创建一个
+    if (!newData.choices[index]) {
+      newData.choices[index] = {
+        delta: { content: "", reasoning_content: "" },
+        _thinkContent: [],
+        _content: "",
+      };
+    }
+    
+    const item = newData.choices[index];
+    const nextData = dataChoice?.delta?.content || "";
+    console.log(`处理 choice[${index}], nextData:`, nextData);
     item.delta.content = nextData
       ? (item.delta.content || "") + nextData
       : item.delta.content || "";
-    const nextDataReasoning =
-      data.choices[index]?.delta?.reasoning_content || "";
+    const nextDataReasoning = dataChoice?.delta?.reasoning_content || "";
     item.delta.reasoning_content = nextDataReasoning
       ? (item.delta.reasoning_content || "") + nextDataReasoning
       : item.delta.reasoning_content || "";
+    console.log(`合并后 item.delta.content:`, item.delta.content);
   });
+  
+  console.log('parseMergeObj 返回 newData.choices[0]?.delta?.content:', newData.choices?.[0]?.delta?.content);
   return newData;
 }
 
@@ -231,9 +277,7 @@ async function sendChat() {
           Authorization: userStore.token,
         },
         body: JSON.stringify({
-          // docs,
-          // model: 'deepseek-r1:32b',
-          model: isThink.value ? "deepseek-reasoner" : "deepseek-chat",
+          model: modelStore.currentModel,
           // model:  'deepseek-r1:32b',
           // model: 'Qwen2',
           // messages: [
@@ -261,7 +305,8 @@ async function sendChat() {
           stream: true,
         }),
       });
-
+      console.log(resp,'res');
+      
       pauseing.value = false;
       // console.log(resp,'resp');
 
@@ -298,7 +343,9 @@ async function sendChat() {
         if (nosupportReader) {
           const { done: readerDone, value } = await reader.read();
           done = readerDone;
-
+            console.log(done,'done');
+            console.log(value,'value');
+            
           if (!value) {
             content.value = "";
             chatMessageList.value[chatMessageList.value.length - 1].loading =
@@ -308,24 +355,28 @@ async function sendChat() {
 
           // const decodeData = textDecoder?.decode(value, { stream: true })
           buffer += textDecoder?.decode(value, { stream: true });
-          // console.log(buffer,'buffer111111');
+          console.log(buffer,'buffer111111');
 
           // decodeDataSplitList = decodeData.split('\n').filter(item => item)
         } else if (!window.ReadableStream || !resp.body?.getReader) {
           buffer += await resp.text();
           const lines = buffer.split("\n");
-          // console.log(lines,'lines');
+          console.log(lines,'lines');
 
           buffer = lines.pop() || "";
           for (const line of lines) {
             if (line.trim()) {
+              console.log('处理行:', line.substring(0, 100));
               const data = parseJsonLikeData(line);
-              // console.log(data, 'data')
+              console.log('解析结果 data:', data ? '有数据' : '无数据', 'done:', data?.done);
               if (data && !data.done) {
                 const lastChatItem =
                   chatMessageList.value[chatMessageList.value.length - 1];
+                console.log('lastChatItem:', lastChatItem);
                 if (lastChatItem.id) {
+                  console.log('调用 parseMergeObj');
                   const newData = parseMergeObj(lastChatItem, data);
+                  console.log('parseMergeObj 返回:', newData);
                   // console.log(newData, 'newData')
                   if (newData.choices?.[0]) {
                     newData.choices = newData.choices.map((item) => {
@@ -391,18 +442,22 @@ async function sendChat() {
         // buffer += textDecoder.decode(value, { stream: true })
 
         const lines = buffer.split("\n");
-        // console.log(lines,'lines');
+        console.log(lines,'lines');
 
         buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.trim()) {
             const data = parseJsonLikeData(line);
-            // console.log(data, 'data')
+            console.log(data, 'data')
             if (data && !data.done) {
               const lastChatItem =
                 chatMessageList.value[chatMessageList.value.length - 1];
+              console.log('lastChatItem:', lastChatItem);
+              console.log('lastChatItem.id:', lastChatItem?.id);
+              console.log('条件判断 lastChatItem.id:', !!lastChatItem?.id);
               if (lastChatItem.id) {
+                console.log('进入 parseMergeObj 分支');
                 const newData = parseMergeObj(lastChatItem, data);
                 // console.log(newData, 'newData')
                 if (newData.choices?.[0]) {
@@ -499,7 +554,7 @@ function generatorAiChatList(data: any) {
     // data: data?.choices || [],
     choices: data?.choices || [],
     role: AI_IDENTITY_AI_VALUE,
-    id: data?.id,
+    id: data?.id || Date.now(), // 确保始终有有效的ID
     type: "robot",
     loading: true,
     pauseing: false,
@@ -640,6 +695,8 @@ onMounted(() => {
   adjustInputWidth();
   checkIsMobile();
   window.addEventListener('resize', checkIsMobile);
+  modelStore.initCurrentModel();
+  loadAvailableModels();
 });
 
 onUnmounted(() => {
@@ -766,23 +823,14 @@ watch(chatTitle, () => {
                                 class="max-w-full! min-w-full! w-full! resize-none! border-0! bg-transparent! text-14! md:text-16! focus:border-0! hover:border-0! focus:shadow-none!"
                                 @keydown.enter.prevent="handleEnterSendChat" />
                             <div class="mt-8 md:mt-10 w-full flex items-center justify-between">
-                                <div class="flex items-center justify-start">
-                                    <ATooltip :key="Math.random()" placement="left">
-                                        <template v-if="!isThink" #title>
-                                            <span class="text-11 md:text-12">调用新模型 Deepseek-R1，解决推理问题</span>
-                                        </template>
-                                        <div :class="[isThink ? 'bg-[var(--button-hover)] text-[var(--primary-color)] border-color-[var(--button-hover)]' : '']"
-                                            class="h-24 md:h-28 flex cursor-pointer items-center justify-between border-width-1 border-color-[rgba(0,0,0,.12)] rounded-12 md:rounded-14 border-solid p-x-6 md:p-x-8 transition-all duration-300 hover:bg-[var(--button-hover-2)]"
-                                            @click="isThink = !isThink">
-                                            <img v-if="!isThink" src="@/assets/images/think_icon.svg"
-                                                class="m-r-3 md:m-r-4 h-14 md:h-18 w-14 md:w-18 cursor-pointer">
-                                            <img v-else src="@/assets/images/think_active_icon.svg"
-                                                class="m-r-3 md:m-r-4 h-14 md:h-18 w-14 md:w-18 cursor-pointer">
-                                            <div class="pt-2 vertical-middle text-11 md:text-12">
-                                                {{ isMobile ? 'R1' : '深度思考(R1)' }}
-                                            </div>
-                                        </div>
-                                    </ATooltip>
+                                <div class="flex items-center justify-start gap-2 md:gap-3">
+                                    <ModelSelector
+                                        v-model="modelStore.currentModel"
+                                        :models="modelStore.availableModels"
+                                        :loading="modelStore.modelsLoading"
+                                        :size="isMobile ? 'small' : 'middle'"
+                                        placeholder="选择模型"
+                                    />
                                     <!-- <ATooltip placement="right">
                 <template v-if="!isRepository" #title>
                   <span class="text-12">关联知识库搜索</span>

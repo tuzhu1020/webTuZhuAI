@@ -115,6 +115,7 @@ declare global {
   const unref: typeof import('vue')['unref']
   const unrefElement: typeof import('@vueuse/core')['unrefElement']
   const until: typeof import('@vueuse/core')['until']
+  const useAIModels: typeof import('./src/composables/useAIModels')['useAIModels']
   const useActiveElement: typeof import('@vueuse/core')['useActiveElement']
   const useAiChat: typeof import('./src/composables/useAiChat')['useAiChat']
   const useAnimate: typeof import('@vueuse/core')['useAnimate']
@@ -204,6 +205,7 @@ declare global {
   const useMemoize: typeof import('@vueuse/core')['useMemoize']
   const useMemory: typeof import('@vueuse/core')['useMemory']
   const useModel: typeof import('vue')['useModel']
+  const useModelStore: typeof import('./src/stores/model')['useModelStore']
   const useMounted: typeof import('@vueuse/core')['useMounted']
   const useMouse: typeof import('@vueuse/core')['useMouse']
   const useMouseInElement: typeof import('@vueuse/core')['useMouseInElement']
@@ -312,6 +314,9 @@ declare global {
   // @ts-ignore
   export type { StreamChatParams } from './src/composables/useAiChat'
   import('./src/composables/useAiChat')
+  // @ts-ignore
+  export type { AIModel } from './src/stores/model'
+  import('./src/stores/model')
 }
 
 // for vue template auto import
@@ -517,6 +522,7 @@ declare module 'vue' {
     readonly useMemoize: UnwrapRef<typeof import('@vueuse/core')['useMemoize']>
     readonly useMemory: UnwrapRef<typeof import('@vueuse/core')['useMemory']>
     readonly useModel: UnwrapRef<typeof import('vue')['useModel']>
+    readonly useModelStore: UnwrapRef<typeof import('./src/stores/model')['useModelStore']>
     readonly useMounted: UnwrapRef<typeof import('@vueuse/core')['useMounted']>
     readonly useMouse: UnwrapRef<typeof import('@vueuse/core')['useMouse']>
     readonly useMouseInElement: UnwrapRef<typeof import('@vueuse/core')['useMouseInElement']>

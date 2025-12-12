@@ -280,7 +280,7 @@ async function send() {
     lastWordLimit.value = wordLimit.value ?? null;
 
     const sessionId = `richtext-${Date.now()}`;
-    const model = selectModel({ reasoning: auto.value, fallback: 'deepseek-chat' });
+    const model = selectModel({ reasoning: auto.value, fallback: 'gpt-4o-mini-ca' });
 
     // 初始化聊天消息列表
     chatMessageList.value = [

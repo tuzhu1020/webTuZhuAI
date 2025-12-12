@@ -94,7 +94,7 @@ function handleEditorSetup(editor: any) {
     text: '续写',
     tooltip: '根据当前内容进行续写',
     icon: 'ant-edit',
-    onAction: () => aiContinueWriting({ model: 'deepseek-chat', style: '学术' })
+    onAction: () => aiContinueWriting({ model: 'gpt-4o-mini-ca', style: '学术' })
   })
   editor.ui.registry.addButton('importword', {
     text: '上传',

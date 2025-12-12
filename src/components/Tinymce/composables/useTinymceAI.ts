@@ -11,7 +11,7 @@ import { $message } from "@/composables/antMessage";
 export interface AiOptions {
   /** AI 输出风格偏好，如“公文”“学术”等 */
   style?: string
-  /** 指定使用的模型名称，默认 deepseek-chat */
+  /** 指定使用的模型名称，默认 gpt-4o-mini-ca */
   model?: string
 }
 
@@ -156,7 +156,7 @@ export function useTinymceAI(getEditor: () => any) {
       editor.selection.select(body, true)
       editor.selection.collapse(false)
       editor.selection.setContent(previewHtml)
-      const model = options?.model || 'deepseek-chat'
+      const model = options?.model || 'gpt-4o-mini-ca'
 
       // 绑定暂停按钮
       try {
@@ -320,7 +320,7 @@ export function useTinymceAI(getEditor: () => any) {
       </div>`
     editor.selection.setContent(wrapperHtml)
 
-    const model = options?.model || 'deepseek-chat'
+    const model = options?.model || 'gpt-4o-mini-ca'
 
     const doc = editor.getDoc()
     const wrapper = doc && doc.querySelector(`div[data-ai-polish-wrapper="${markerId}"]`)

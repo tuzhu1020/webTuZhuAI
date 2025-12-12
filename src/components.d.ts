@@ -16,6 +16,7 @@ declare module 'vue' {
     'Index copy 2': typeof import('./components/Tinymce/index copy 2.vue')['default']
     MarkdownPreview: typeof import('./components/MarkdownPreview/index.vue')['default']
     MarkdownWithECharts: typeof import('./components/MarkdownWithECharts/index.vue')['default']
+    ModelSelector: typeof import('./components/ModelSelector/index.vue')['default']
     NavBar: typeof import('./components/NavBar/index.vue')['default']
     ParticlesClock: typeof import('./components/ParticlesClock/index.vue')['default']
     ProcessCards: typeof import('./components/ProcessCards/index.vue')['default']
